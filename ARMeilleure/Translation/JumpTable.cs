@@ -1,4 +1,5 @@
-﻿using ARMeilleure.Memory;
+﻿using ARMeilleure.Diagnostics;
+using ARMeilleure.Memory;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -67,6 +68,9 @@ namespace ARMeilleure.Translation
 
             _targets = new ConcurrentDictionary<ulong, TranslatedFunction>();
             _dependants = new ConcurrentDictionary<ulong, LinkedList<int>>();
+
+            CodeDumper.AddSymbol(_jumpRegion.Pointer.ToInt64(), _jumpRegion.Pointer.ToInt64() + JumpTableByteSize, "JUMP_TABLE");
+            CodeDumper.AddSymbol(_dynamicRegion.Pointer.ToInt64(), _dynamicRegion.Pointer.ToInt64() + DynamicTableByteSize, "DYN_TABLE");
         }
 
         public void RegisterFunction(ulong address, TranslatedFunction func) {

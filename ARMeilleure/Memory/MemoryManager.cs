@@ -1,3 +1,4 @@
+using ARMeilleure.Diagnostics;
 using ARMeilleure.State;
 using System;
 using System.Collections.Generic;
@@ -63,6 +64,8 @@ namespace ARMeilleure.Memory
             PtLevelMask = PtLevelSize - 1;
 
             _pageTable = Allocate((ulong)(PtLevelSize * IntPtr.Size));
+
+            CodeDumper.AddSymbol(_pageTable.ToInt64(), _pageTable.ToInt64() + PtLevelSize * IntPtr.Size, "PAGE_TABLE");
         }
 
         public void Map(long va, long pa, long size)
