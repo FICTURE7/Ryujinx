@@ -182,7 +182,7 @@ namespace ARMeilleure.Translation
 
             CompilerOptions options = highCq ? CompilerOptions.HighCq : CompilerOptions.None;
 
-            GuestFunction func = Compiler.Compile<GuestFunction>(cfg, argTypes, OperandType.I64, options);
+            GuestFunction func = Compiler.Compile<GuestFunction>(cfg, argTypes, OperandType.I64, options, address.ToString("x2"));
 
             ResetOperandPool(highCq);
             ResetOperationPool(highCq);
