@@ -1,0 +1,45 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <RuntimeIdentifiers>win-x64;osx-x64;linux-x64</RuntimeIdentifiers>
+
+    <IsPackable>false</IsPackable>
+
+    <TargetOS Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Windows)))' == 'true'">windows</TargetOS>
+    <TargetOS Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::OSX)))' == 'true'">osx</TargetOS>
+    <TargetOS Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))' == 'true'">linux</TargetOS>
+    <StartupObject>ARMeilleure.Tests.Tests</StartupObject>
+    <NoWin32Manifest>true</NoWin32Manifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="nunit" Version="3.12.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="3.15.1" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.4.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ARMeilleure\ARMeilleure.csproj" />
+    <ProjectReference Include="..\Ryujinx.Cpu\Ryujinx.Cpu.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="aarch32\" />
+    <Folder Include="aarch64\alu\" />
+    <Folder Include="Disassemblers\" />
+  </ItemGroup>
+
+  <Target Name="CopyUnicorn" AfterTargets="Build">
+    <Copy SourceFiles="..\ARMeilleure.Tests\libs\$(TargetOS)\unicorn.dll" DestinationFolder="$(OutputPath)" ContinueOnError="true" />
+    <Copy SourceFiles="..\ARMeilleure.Tests\libs\$(TargetOS)\libunicorn.dylib" DestinationFolder="$(OutputPath)" ContinueOnError="true" />
+    <Copy SourceFiles="..\ARMeilleure.Tests\libs\$(TargetOS)\libunicorn.so" DestinationFolder="$(OutputPath)" ContinueOnError="true" />
+  </Target>
+
+  <Target Name="CopyKeystone" AfterTargets="Build">
+    <Copy SourceFiles="..\ARMeilleure.Tests\libs\$(TargetOS)\keystone.dll" DestinationFolder="$(OutputPath)" ContinueOnError="true" />
+    <Copy SourceFiles="..\ARMeilleure.Tests\libs\$(TargetOS)\libkeystone.dylib" DestinationFolder="$(OutputPath)" ContinueOnError="true" />
+    <Copy SourceFiles="..\ARMeilleure.Tests\libs\$(TargetOS)\libkeystone.so" DestinationFolder="$(OutputPath)" ContinueOnError="true" />
+  </Target>
+
+</Project>

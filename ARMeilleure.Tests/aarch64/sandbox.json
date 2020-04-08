@@ -1,0 +1,13 @@
+﻿{
+  "Name": "Sandbox",
+  "Description": "Sandbox environment to test ARMeilleure against Unicorn.",
+  "Entry": "main",
+  "Memory": {
+    "Map": [
+      [0, 4096]
+    ]
+  },
+  "Context": {
+    "x1": 1232
+  }
+}

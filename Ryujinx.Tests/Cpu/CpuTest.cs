@@ -52,7 +52,6 @@ namespace Ryujinx.Tests.Cpu
             _memory.Map(_currAddress, 0, _size);
 
             _context = CpuContext.CreateExecutionContext();
-
             _cpuContext = new CpuContext(_memory);
 
             if (_unicornAvailable)
