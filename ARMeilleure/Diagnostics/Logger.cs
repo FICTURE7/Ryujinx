@@ -1,6 +1,9 @@
+#define M_DEBUG
+
 using ARMeilleure.Translation;
 using System;
 using System.Diagnostics;
+using System.IO;
 
 namespace ARMeilleure.Diagnostics
 {
@@ -24,14 +27,21 @@ namespace ARMeilleure.Diagnostics
 #endif
         }
 
-        public static void EndPass(PassName name, ControlFlowGraph cfg)
+        public static void EndPass(PassName name, ControlFlowGraph cfg, string unitName = null)
         {
 #if M_DEBUG
             EndPass(name);
 
-            WriteOutput("IR after " + name + " pass:");
+            if (Compiler.Dumping && unitName != null)
+            {
+                string fileName = $"{unitName}-{name}.ir";
 
-            WriteOutput(IRDumper.GetDump(cfg));
+                if (File.Exists($"./base-ir/{fileName}"))
+                {
+                    // Do the IO on another thread.
+                    File.WriteAllTextAsync($"./diff-ir/{fileName}", IRDumper.GetDump(cfg));
+                }
+            }
 #endif
         }
 

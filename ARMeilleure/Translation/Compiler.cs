@@ -10,12 +10,12 @@ namespace ARMeilleure.Translation
 {
     static class Compiler
     {
+        public static bool Dumping { get; } = true;
+
+        public static bool IsBase { get; }
+        public static bool IsDiff => !IsBase;
+
         static int Id { get; set; }
-
-        static bool Dumping { get; } = true;
-
-        static bool IsBase { get; }
-        static bool IsDiff => !IsBase;
 
         static Compiler()
         {
@@ -30,28 +30,33 @@ namespace ARMeilleure.Translation
 
         public static T Compile<T>(ControlFlowGraph cfg, OperandType[] argTypes, OperandType retType, CompilerOptions options, string name = null)
         {
-            CompiledFunction func = CompileAndGetCf(cfg, argTypes, retType, options);
+            if (Dumping)
+            {
+                name = name ?? Id++.ToString();
+                name = $"{name}.{(options == CompilerOptions.HighCq ? "hcq" : "lcq")}";
+            }
+
+            CompiledFunction func = CompileAndGetCf(cfg, argTypes, retType, options, name);
 
             IntPtr codePtr = JitCache.Map(func);
 
             if (Dumping)
             {
-                name = name ?? Id++.ToString();
-                name = $"{name}.{(options == CompilerOptions.HighCq ? "hcq" : "lcq")}.asm";
+                name += ".asm";
 
                 if (IsBase || (IsDiff && File.Exists($"./base/{name}")))
                 {
                     name = $"./{(IsBase ? "base" : "diff")}/{name}";
 
                     // Do the IO on another thread.
-                    var _ = File.WriteAllTextAsync(name, CodeDumper.GetCode(ref func));
+                    File.WriteAllTextAsync(name, CodeDumper.GetCode(ref func));
                 }
             }
 
             return Marshal.GetDelegateForFunctionPointer<T>(codePtr);
         }
 
-        public static CompiledFunction CompileAndGetCf(ControlFlowGraph cfg, OperandType[] argTypes, OperandType retType, CompilerOptions options)
+        public static CompiledFunction CompileAndGetCf(ControlFlowGraph cfg, OperandType[] argTypes, OperandType retType, CompilerOptions options, string name)
         {
             Logger.StartPass(PassName.Dominance);
 
@@ -71,9 +76,9 @@ namespace ARMeilleure.Translation
                 RegisterToLocal.Rename(cfg);
             }
 
-            Logger.EndPass(PassName.SsaConstruction, cfg);
+            Logger.EndPass(PassName.SsaConstruction, cfg, name);
 
-            CompilerContext cctx = new CompilerContext(cfg, argTypes, retType, options);
+            CompilerContext cctx = new CompilerContext(name, cfg, argTypes, retType, options);
 
             return CodeGenerator.Generate(cctx);
         }
