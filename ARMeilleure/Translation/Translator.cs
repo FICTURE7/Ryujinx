@@ -168,7 +168,7 @@ namespace ARMeilleure.Translation
 
             ControlFlowGraph cfg = EmitAndGetCFG(context, blocks);
 
-            Logger.EndPass(PassName.Translation);
+            Logger.EndPass(PassName.Translation, cfg, address.ToString("X") + "-Translation.ir");
 
             Logger.StartPass(PassName.RegisterUsage);
 

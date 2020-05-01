@@ -36,10 +36,12 @@ namespace ARMeilleure.Diagnostics
             {
                 string fileName = $"{unitName}-{name}.ir";
 
-                if (File.Exists($"./base-ir/{fileName}"))
+                if (Compiler.IsBase || (Compiler.IsDiff && File.Exists($"./base-ir/{fileName}")))
                 {
+                    fileName = $"./{(Compiler.IsBase ? "base-ir" : "diff-ir")}/{fileName}";
+
                     // Do the IO on another thread.
-                    File.WriteAllTextAsync($"./diff-ir/{fileName}", IRDumper.GetDump(cfg));
+                    File.WriteAllTextAsync(fileName, IRDumper.GetDump(cfg));
                 }
             }
 #endif

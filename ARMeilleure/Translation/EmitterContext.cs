@@ -1,8 +1,11 @@
+using ARMeilleure.CodeGen.Optimizations;
 using ARMeilleure.Diagnostics;
 using ARMeilleure.IntermediateRepresentation;
 using ARMeilleure.State;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Reflection;
 using System.Runtime.InteropServices;
 
 using static ARMeilleure.IntermediateRepresentation.OperandHelper;
@@ -474,9 +477,7 @@ namespace ARMeilleure.Translation
         {
             NewNextBlockIfNeeded();
 
-            Operation operation = OperationHelper.Operation(inst, dest);
-
-            _irBlock.Operations.AddLast(operation);
+            AddInternal(OperationHelper.Operation(inst, dest));
 
             return dest;
         }
@@ -485,9 +486,7 @@ namespace ARMeilleure.Translation
         {
             NewNextBlockIfNeeded();
 
-            Operation operation = OperationHelper.Operation(inst, dest, sources);
-
-            _irBlock.Operations.AddLast(operation);
+            AddInternal(OperationHelper.Operation(inst, dest, sources));
 
             return dest;
         }
@@ -496,9 +495,7 @@ namespace ARMeilleure.Translation
         {
             NewNextBlockIfNeeded();
 
-            Operation operation = OperationHelper.Operation(inst, dest, source0);
-
-            _irBlock.Operations.AddLast(operation);
+            AddInternal(OperationHelper.Operation(inst, dest, source0));
 
             return dest;
         }
@@ -507,9 +504,7 @@ namespace ARMeilleure.Translation
         {
             NewNextBlockIfNeeded();
 
-            Operation operation = OperationHelper.Operation(inst, dest, source0, source1);
-
-            _irBlock.Operations.AddLast(operation);
+            AddInternal(OperationHelper.Operation(inst, dest, source0, source1));
 
             return dest;
         }
@@ -518,9 +513,7 @@ namespace ARMeilleure.Translation
         {
             NewNextBlockIfNeeded();
 
-            Operation operation = OperationHelper.Operation(inst, dest, source0, source1, source2);
-
-            _irBlock.Operations.AddLast(operation);
+            AddInternal(OperationHelper.Operation(inst, dest, source0, source1, source2));
 
             return dest;
         }
@@ -547,11 +540,53 @@ namespace ARMeilleure.Translation
                 NewNextBlock();
             }
 
-            IntrinsicOperation operation = new IntrinsicOperation(intrin, dest, sources);
-
-            _irBlock.Operations.AddLast(operation);
+            AddInternal(new IntrinsicOperation(intrin, dest, sources));
 
             return dest;
+        }
+
+        private void AddInternal(Operation operation)
+        {
+            // TODO: Consider doing this in groups instead?
+
+            // If source operands of 'operation' is was assigned by a Copy; replace
+            // the source operand of 'operation' with source operand of the Copy.
+            for (int index = 0; index < operation.SourcesCount; index++)
+            {
+                Operand src = operation.GetSource(index);
+
+                if (src.Kind != OperandKind.LocalVariable)
+                {
+                    continue;
+                }
+
+                // Get the last assignment of the source operand.
+                // TODO: Perhaps this is slightly too aggressive?
+                if (!(src.Assignments[^1] is Operation assignOp))
+                {
+                    continue;
+                }
+
+                if (assignOp.Instruction == Instruction.Copy)
+                {
+                    Operand assignSrc = assignOp.GetSource(0);
+                    Operand assignDest = assignOp.Destination;
+
+                    Debug.Assert(assignDest != null);
+
+                    if ((assignSrc.Type == src.Type) && 
+                        (assignSrc.Type == assignDest.Type) && 
+                        (assignSrc.Kind == OperandKind.Constant || assignSrc.Kind == OperandKind.LocalVariable))
+                    {
+                        operation.SetSource(index, assignSrc);
+                    }
+                }
+            }
+
+            ConstantFolding.RunPass(operation);
+            Simplification.RunPass(operation);
+
+            _irBlock.Operations.AddLast(operation);
         }
 
         private void BranchToLabel(Operand label)
