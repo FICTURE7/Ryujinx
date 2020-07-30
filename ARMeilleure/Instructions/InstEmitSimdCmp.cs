@@ -534,7 +534,7 @@ namespace ARMeilleure.Instructions
                 {
                     Operand ordMask = context.AddIntrinsic(Intrinsic.X86Cmpss, n, m, Const((int)cmpOrdered));
 
-                    Operand isOrdered = context.AddIntrinsicInt(Intrinsic.X86Cvtsi2si, ordMask);
+                    Operand isOrdered = context.VectorExtract(OperandType.I32, ordMask, 0);
 
                     context.BranchIfFalse(lblNaN, isOrdered);
 
@@ -551,7 +551,7 @@ namespace ARMeilleure.Instructions
                 {
                     Operand ordMask = context.AddIntrinsic(Intrinsic.X86Cmpsd, n, m, Const((int)cmpOrdered));
 
-                    Operand isOrdered = context.AddIntrinsicLong(Intrinsic.X86Cvtsi2si, ordMask);
+                    Operand isOrdered = context.VectorExtract(OperandType.I64, ordMask, 0);
 
                     context.BranchIfFalse(lblNaN, isOrdered);
 

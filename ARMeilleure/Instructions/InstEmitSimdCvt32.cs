@@ -397,7 +397,7 @@ namespace ARMeilleure.Instructions
 
                 nRes = context.AddIntrinsic(Intrinsic.X86Cmpss, nRes, fpMaxValMask, Const((int)CmpCondition.NotLessThan));
 
-                Operand nInt = context.AddIntrinsicInt(Intrinsic.X86Cvtsi2si, nRes);
+                Operand nInt = context.VectorExtract(OperandType.I32, nRes, 0);
 
                 Operand dRes;
                 if (signed)
@@ -447,7 +447,7 @@ namespace ARMeilleure.Instructions
 
                 nRes = context.AddIntrinsic(Intrinsic.X86Cmpsd, nRes, fpMaxValMask, Const((int)CmpCondition.NotLessThan));
 
-                Operand nLong = context.AddIntrinsicLong(Intrinsic.X86Cvtsi2si, nRes);
+                Operand nLong = context.VectorExtract(OperandType.I64, nRes, 0);
                 nLong = context.ConvertI64ToI32(nLong);
 
                 Operand dRes;

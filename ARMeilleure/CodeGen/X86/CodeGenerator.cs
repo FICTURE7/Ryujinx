@@ -273,21 +273,7 @@ namespace ARMeilleure.CodeGen.X86
 
                         Debug.Assert(dest.Type.IsInteger() && !source.Type.IsInteger());
 
-                        if (intrinOp.Intrinsic == Intrinsic.X86Cvtsi2si)
-                        {
-                            if (dest.Type == OperandType.I32)
-                            {
-                                context.Assembler.Movd(dest, source); // int _mm_cvtsi128_si32(__m128i a)
-                            }
-                            else /* if (dest.Type == OperandType.I64) */
-                            {
-                                context.Assembler.Movq(dest, source); // __int64 _mm_cvtsi128_si64(__m128i a)
-                            }
-                        }
-                        else
-                        {
-                            context.Assembler.WriteInstruction(info.Inst, dest, source, dest.Type);
-                        }
+                        context.Assembler.WriteInstruction(info.Inst, dest, source, dest.Type);
 
                         break;
                     }
