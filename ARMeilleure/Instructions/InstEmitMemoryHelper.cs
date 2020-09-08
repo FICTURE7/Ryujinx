@@ -3,6 +3,7 @@ using ARMeilleure.IntermediateRepresentation;
 using ARMeilleure.Translation;
 using ARMeilleure.Translation.PTC;
 using System;
+using System.Drawing;
 using System.Reflection;
 
 using static ARMeilleure.Instructions.InstEmitHelper;
@@ -115,7 +116,7 @@ namespace ARMeilleure.Instructions
             EmitWriteVector(context, address, rt, elem, size);
         }
 
-        private static bool IsSimd(ArmEmitterContext context)
+        public static bool IsSimd(ArmEmitterContext context)
         {
             return context.CurrOp is IOpCodeSimd &&
                  !(context.CurrOp is OpCodeSimdMemMs ||
@@ -347,6 +348,15 @@ namespace ARMeilleure.Instructions
             return context.BitwiseAnd(address, Const(address.Type, (long)addressCheckMask));
         }
 
+        public static Operand EmitAddressCheck2(ArmEmitterContext context, Operand address, uint sizeBytes)
+        {
+            ulong addressCheckMask = ~((1UL << context.Memory.AddressSpaceBits) - 1);
+
+            addressCheckMask |= sizeBytes - 1;
+
+            return context.BitwiseAnd(address, Const(address.Type, (long)addressCheckMask));
+        }
+
         public static Operand EmitPtPointerLoad(ArmEmitterContext context, Operand address, Operand lblSlowPath, bool write)
         {
             int ptLevelBits = context.Memory.AddressSpaceBits - 12; // 12 = Number of page bits.
@@ -538,12 +548,12 @@ namespace ARMeilleure.Instructions
             context.Call(info, address, value);
         }
 
-        private static Operand GetInt(ArmEmitterContext context, int rt)
+        public static Operand GetInt(ArmEmitterContext context, int rt)
         {
             return context.CurrOp is OpCode32 ? GetIntA32(context, rt) : GetIntOrZR(context, rt);
         }
 
-        private static void SetInt(ArmEmitterContext context, int rt, Operand value)
+        public static void SetInt(ArmEmitterContext context, int rt, Operand value)
         {
             if (context.CurrOp is OpCode32)
             {
