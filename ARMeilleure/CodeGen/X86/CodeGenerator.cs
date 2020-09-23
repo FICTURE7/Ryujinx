@@ -98,13 +98,12 @@ namespace ARMeilleure.CodeGen.X86
 
             Logger.StartPass(PassName.Optimization);
 
-            if ((cctx.Options & CompilerOptions.SsaForm)  != 0 &&
-                (cctx.Options & CompilerOptions.Optimize) != 0)
+            if (cctx.Options.HasFlag(CompilerOptions.SsaForm | CompilerOptions.Optimize))
             {
                 Optimizer.RunPass(cfg);
             }
 
-            X86Optimizer.RunPass(cfg);
+            X86Optimizer.FoldToMemoryOperands(cfg);
 
             BlockPlacement.RunPass(cfg);
 
@@ -120,14 +119,14 @@ namespace ARMeilleure.CodeGen.X86
 
             Logger.StartPass(PassName.RegisterAllocation);
 
-            if ((cctx.Options & CompilerOptions.SsaForm) != 0)
+            if (cctx.Options.HasFlag(CompilerOptions.SsaForm))
             {
                 Ssa.Deconstruct(cfg);
             }
 
             IRegisterAllocator regAlloc;
 
-            if ((cctx.Options & CompilerOptions.Lsra) != 0)
+            if (cctx.Options.HasFlag(CompilerOptions.Lsra))
             {
                 regAlloc = new LinearScanAllocator();
             }
@@ -149,6 +148,11 @@ namespace ARMeilleure.CodeGen.X86
             Logger.EndPass(PassName.RegisterAllocation, cfg);
 
             Logger.StartPass(PassName.CodeGeneration);
+
+            //if (cctx.Options.HasFlag(CompilerOptions.Optimize))
+            {
+                X86Optimizer.FoldRedundantMoves(cfg);
+            }
 
             using (MemoryStream stream = new MemoryStream())
             {

@@ -1,7 +1,8 @@
 ﻿using ARMeilleure.CodeGen.Optimizations;
 using ARMeilleure.IntermediateRepresentation;
 using ARMeilleure.Translation;
-
+using System;
+using System.Diagnostics;
 using static ARMeilleure.IntermediateRepresentation.OperandHelper;
 using static ARMeilleure.IntermediateRepresentation.OperationHelper;
 
@@ -9,7 +10,77 @@ namespace ARMeilleure.CodeGen.X86
 {
     static class X86Optimizer
     {
-        public static void RunPass(ControlFlowGraph cfg)
+        public static void FoldRedundantMoves(ControlFlowGraph cfg)
+        {
+            for (BasicBlock block = cfg.Blocks.First; block != null; block = block.ListNext)
+            {
+                Node node;
+                Node nextNode;
+
+                // States of the upper 32 bits of the registers in the current block.
+                Span<bool> gprUpper32BitsZero = stackalloc bool[16];
+
+                for (node = block.Operations.First; node != null; node = nextNode)
+                {
+                    nextNode = node.ListNext;
+
+                    if (!(node is Operation operation) || operation.DestinationsCount == 0)
+                    {
+                        continue;
+                    }
+
+                    Operand dest = operation.Destination;
+                    Register destReg = dest.GetRegister();
+
+                    Debug.Assert(dest.Kind == OperandKind.Register);
+
+                    // Does this operation clears explicitly 32 of upper bits of the register?
+                    bool zerosUpper32BitsExplicit = operation.Instruction switch
+                    {
+                        Instruction.ConvertI64ToI32 => true,
+                        Instruction.ZeroExtend32 => true,
+                        _ => false
+                    };
+
+                    // Does this operation clears at least 32 of upper bits of the register?
+                    bool zerosUpper32Bits = operation.Instruction switch
+                    {
+                        Instruction.ZeroExtend16 => true,
+                        Instruction.ZeroExtend8 => true,
+                        _ => zerosUpper32BitsExplicit | dest.Type == OperandType.I32
+                    };
+
+                    if (zerosUpper32BitsExplicit)
+                    {
+                        Operand src = operation.GetSource(0);
+                        Register srcReg = src.GetRegister();
+
+                        // If the operation zeros exactly 32 bits of the register, the upper 32 bits of the register is
+                        // already zero and the destination and the source register are the same, then we can remove the
+                        // operation.
+                        if (gprUpper32BitsZero[destReg.Index] && destReg == srcReg)
+                        {
+                            block.Operations.Remove(node);
+                        }
+                    }
+                    else if (operation.Instruction == Instruction.Copy)
+                    {
+                        Operand src = operation.GetSource(0);
+                        Register srcReg = src.GetRegister();
+
+                        // Propagate register states across copy operations.
+                        if (src.Kind == OperandKind.Register && srcReg.Type == RegisterType.Integer)
+                        {
+                            zerosUpper32Bits |= gprUpper32BitsZero[srcReg.Index];
+                        }
+                    }
+
+                    gprUpper32BitsZero[destReg.Index] = zerosUpper32Bits;
+                }
+            }
+        }
+
+        public static void FoldToMemoryOperands(ControlFlowGraph cfg)
         {
             for (BasicBlock block = cfg.Blocks.First; block != null; block = block.ListNext)
             {
