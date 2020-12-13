@@ -291,6 +291,24 @@ namespace ARMeilleure.Diagnostics
             return dumper._builder.ToString();
         }
 
+        public static string GetDotDump(ControlFlowGraph cfg)
+        {
+            var builder = new StringBuilder().AppendLine("digraph {");
+
+            StringBuilder AppendBlockName(BasicBlock block) =>
+                builder.Append("block").Append(block.Index);
+
+            for (BasicBlock block = cfg.Blocks.First; block != null; block = block.ListNext)
+            {
+                for (int i = 0; i < block.SuccessorCount; i++) {
+                    AppendBlockName(block).Append("->");
+                    AppendBlockName(block.GetSuccessor(i)).AppendLine();
+                }
+            }
+
+            return builder.Append("}").ToString();
+        }
+
         private static string GetTypeName(OperandType type)
         {
             return type switch

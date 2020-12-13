@@ -5,6 +5,7 @@ using ARMeilleure.Translation.PTC;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.IO;
 
 using static ARMeilleure.IntermediateRepresentation.OperandHelper;
 
@@ -668,9 +669,22 @@ namespace ARMeilleure.Translation
                     lastOp.Instruction == Instruction.Tailcall);
         }
 
-        public ControlFlowGraph GetControlFlowGraph()
+        public ControlFlowGraph GetControlFlowGraph(string unitName = null)
         {
-            return new ControlFlowGraph(_irBlocks.First, _irBlocks);
+            var cfg = new ControlFlowGraph(_irBlocks.First, _irBlocks);
+
+            if (Compiler.Dumping && unitName != null)
+            {
+                string fileName = $"{unitName}.dot";
+
+                if (Compiler.IsBase || (Compiler.IsDiff && File.Exists($"./base-dot/{fileName}")))
+                {
+                    // Do the IO on another thread.
+                    File.WriteAllTextAsync($"./{(Compiler.IsBase ? "base-dot" : "diff-dot")}/{fileName}", IRDumper.GetDotDump(cfg));
+                }
+            }
+
+            return cfg;
         }
     }
 }

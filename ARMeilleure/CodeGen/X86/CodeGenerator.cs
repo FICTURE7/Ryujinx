@@ -108,7 +108,7 @@ namespace ARMeilleure.CodeGen.X86
 
             BlockPlacement.RunPass(cfg);
 
-            Logger.EndPass(PassName.Optimization, cfg);
+            Logger.EndPass(PassName.Optimization, cfg, cctx.Name);
 
             Logger.StartPass(PassName.PreAllocation);
 
@@ -116,7 +116,7 @@ namespace ARMeilleure.CodeGen.X86
 
             PreAllocator.RunPass(cctx, stackAlloc, out int maxCallArgs);
 
-            Logger.EndPass(PassName.PreAllocation, cfg);
+            Logger.EndPass(PassName.PreAllocation, cfg, cctx.Name);
 
             Logger.StartPass(PassName.RegisterAllocation);
 
@@ -146,7 +146,7 @@ namespace ARMeilleure.CodeGen.X86
 
             AllocationResult allocResult = regAlloc.RunPass(cfg, stackAlloc, regMasks);
 
-            Logger.EndPass(PassName.RegisterAllocation, cfg);
+            Logger.EndPass(PassName.RegisterAllocation, cfg, cctx.Name);
 
             Logger.StartPass(PassName.CodeGeneration);
 

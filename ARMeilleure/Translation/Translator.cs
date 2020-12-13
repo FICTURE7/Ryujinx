@@ -62,6 +62,8 @@ namespace ARMeilleure.Translation
             JitCache.Initialize(allocator);
 
             DirectCallStubs.InitializeStubs();
+
+            Symbols.Add((ulong)memory.PageTablePointer.ToInt64(), ((ulong)(1 << memory.AddressSpaceBits) / 4096) * 8, 8, "PAGE_TABLE");
         }
 
         private void TranslateStackedSubs()
@@ -226,6 +228,8 @@ namespace ARMeilleure.Translation
         {
             var context = new ArmEmitterContext(memory, jumpTable, countTable, address, highCq, Aarch32Mode.User);
 
+            string name = $"{address:x2}.{(highCq ? "hcq" : "lcq")}";
+
             Logger.StartPass(PassName.Decoding);
 
             Block[] blocks = Decoder.Decode(memory, address, mode, highCq, singleBlock: false);
@@ -250,7 +254,7 @@ namespace ARMeilleure.Translation
                 context.Branch(context.GetLabel(address));
             }
 
-            ControlFlowGraph cfg = EmitAndGetCFG(context, blocks, out Range funcRange);
+            ControlFlowGraph cfg = EmitAndGetCFG(context, blocks, name, out Range funcRange);
 
             ulong funcSize = funcRange.End - funcRange.Start;
 
@@ -270,7 +274,7 @@ namespace ARMeilleure.Translation
 
             if (Ptc.State == PtcState.Disabled)
             {
-                func = Compiler.Compile<GuestFunction>(cfg, argTypes, OperandType.I64, options);
+                func = Compiler.Compile<GuestFunction>(cfg, argTypes, OperandType.I64, options, name, ptcInfo: null);
 
                 ResetPool(highCq ? 1 : 0);
             }
@@ -278,7 +282,7 @@ namespace ARMeilleure.Translation
             {
                 using PtcInfo ptcInfo = new PtcInfo();
 
-                func = Compiler.Compile<GuestFunction>(cfg, argTypes, OperandType.I64, options, ptcInfo);
+                func = Compiler.Compile<GuestFunction>(cfg, argTypes, OperandType.I64, options, name, ptcInfo);
 
                 ResetPool(highCq ? 1 : 0);
 
@@ -319,7 +323,7 @@ namespace ARMeilleure.Translation
             }
         }
 
-        private static ControlFlowGraph EmitAndGetCFG(ArmEmitterContext context, Block[] blocks, out Range range)
+        private static ControlFlowGraph EmitAndGetCFG(ArmEmitterContext context, Block[] blocks, string name, out Range range)
         {
             ulong rangeStart = ulong.MaxValue;
             ulong rangeEnd = 0;
@@ -392,7 +396,7 @@ namespace ARMeilleure.Translation
 
             range = new Range(rangeStart, rangeEnd);
 
-            return context.GetControlFlowGraph();
+            return context.GetControlFlowGraph(name);
         }
 
         internal static void EmitRejitCheck(ArmEmitterContext context, out Counter<uint> counter)
