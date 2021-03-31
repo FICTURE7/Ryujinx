@@ -17,25 +17,14 @@ namespace ARMeilleure.Translation
 
         public List<Operand> Locals { get; }
 
-        public ControlFlowGraph(BasicBlock entry, IntrusiveList<BasicBlock> blocks)
+        public ControlFlowGraph(BasicBlock entry, IntrusiveList<BasicBlock> blocks, List<Operand> locals)
         {
             Entry = entry;
             Blocks = blocks;
 
-            Locals = new List<Operand>();
+            Locals = locals; 
 
             Update(removeUnreachableBlocks: true);
-        }
-
-        public Operand NewLocal(OperandType type)
-        {
-            Operand local = OperandHelper.Local(type);
-
-            Locals.Add(local);
-
-            local.NumberLocal(Locals.Count);
-
-            return local;
         }
 
         public void Update(bool removeUnreachableBlocks)
