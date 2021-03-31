@@ -86,6 +86,7 @@ namespace ARMeilleure.CodeGen.RegisterAllocators
             BlockInfo[] blockInfo = new BlockInfo[cfg.Blocks.Count];
 
             List<LocalInfo> locInfo = new List<LocalInfo>();
+            HashSet<Operand> visited = new HashSet<Operand>();
 
             for (int index = cfg.PostOrderBlocks.Length - 1; index >= 0; index--)
             {
@@ -135,7 +136,7 @@ namespace ARMeilleure.CodeGen.RegisterAllocators
                         {
                             LocalInfo info;
 
-                            if (dest.Value != 0)
+                            if (!visited.Add(dest))
                             {
                                 info = locInfo[dest.AsInt32() - 1];
                             }
