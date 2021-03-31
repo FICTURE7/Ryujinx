@@ -390,7 +390,7 @@ namespace ARMeilleure.Instructions
                 // We need to clear out the call flag for the return address before comparing it.
                 context.BranchIf(lblContinue, returnAddress, nextAddr, Comparison.Equal, BasicBlockFrequency.Cold);
 
-                context.Return(returnAddress);
+                context.Return(returnAddress, merge: true);
             }
         }
     }

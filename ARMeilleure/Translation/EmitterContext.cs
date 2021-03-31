@@ -12,6 +12,9 @@ namespace ARMeilleure.Translation
 {
     class EmitterContext
     {
+        private readonly Operand _returnLabel;
+        private readonly Operand _returnValue;
+
         private readonly List<Operand> _locals;
 
         private readonly Dictionary<Operand, BasicBlock> _irLabels;
@@ -23,6 +26,8 @@ namespace ARMeilleure.Translation
         private bool _needsNewBlock;
         private BasicBlockFrequency _nextBlockFreq;
 
+        public bool TailMerge { get; } = true;
+
         public EmitterContext()
         {
             _locals = new List<Operand>();
@@ -32,6 +37,12 @@ namespace ARMeilleure.Translation
 
             _needsNewBlock = true;
             _nextBlockFreq = BasicBlockFrequency.Default;
+
+            if (TailMerge)
+            {
+                _returnValue = NewLocal(OperandType.I64);
+                _returnLabel = Label();
+            }
         }
 
         public Operand NewLocal(OperandType type)
@@ -370,11 +381,20 @@ namespace ARMeilleure.Translation
             _needsNewBlock = true;
         }
 
-        public void Return(Operand op1)
+        public void Return(Operand op1, bool merge = false)
         {
-            Add(Instruction.Return, null, op1);
+            if (TailMerge && merge)
+            {
+                Copy(_returnValue, op1);
 
-            _needsNewBlock = true;
+                Branch(_returnLabel);
+            }
+            else
+            {
+                Add(Instruction.Return, null, op1);
+
+                _needsNewBlock = true;
+            }
         }
 
         public Operand RotateRight(Operand op1, Operand op2)
