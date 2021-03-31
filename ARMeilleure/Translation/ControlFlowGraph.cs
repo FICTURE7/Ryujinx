@@ -15,12 +15,27 @@ namespace ARMeilleure.Translation
         public BasicBlock[] PostOrderBlocks => _postOrderBlocks;
         public int[] PostOrderMap => _postOrderMap; 
 
+        public List<Operand> Locals { get; }
+
         public ControlFlowGraph(BasicBlock entry, IntrusiveList<BasicBlock> blocks)
         {
             Entry = entry;
             Blocks = blocks;
 
+            Locals = new List<Operand>();
+
             Update(removeUnreachableBlocks: true);
+        }
+
+        public Operand NewLocal(OperandType type)
+        {
+            Operand local = OperandHelper.Local(type);
+
+            Locals.Add(local);
+
+            local.NumberLocal(Locals.Count);
+
+            return local;
         }
 
         public void Update(bool removeUnreachableBlocks)
