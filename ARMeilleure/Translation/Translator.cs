@@ -10,7 +10,6 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Runtime;
 using System.Threading;
 
@@ -32,6 +31,8 @@ namespace ARMeilleure.Translation
         private readonly AutoResetEvent _backgroundTranslatorEvent;
         private readonly ReaderWriterLock _backgroundTranslatorLock;
 
+        private readonly AddressTable<int> _functionTable;
+
         private JumpTable _jumpTable;
         internal JumpTable JumpTable => _jumpTable;
 
@@ -44,6 +45,8 @@ namespace ARMeilleure.Translation
         {
             _allocator = allocator;
             _memory = memory;
+
+            _functionTable = new AddressTable<int>();
 
             _funcs = new ConcurrentDictionary<ulong, TranslatedFunction>();
             _oldFuncs = new ConcurrentQueue<KeyValuePair<ulong, IntPtr>>();
@@ -65,7 +68,7 @@ namespace ARMeilleure.Translation
 
                 if (_backgroundStack.TryPop(out RejitRequest request))
                 {
-                    TranslatedFunction func = Translate(_memory, _jumpTable, request.Address, request.Mode, highCq: true);
+                    TranslatedFunction func = Translate(_memory, _jumpTable, _functionTable, request.Address, request.Mode, highCq: true);
 
                     _funcs.AddOrUpdate(request.Address, func, (key, oldFunc) =>
                     {
@@ -99,12 +102,13 @@ namespace ARMeilleure.Translation
                 IsReadyForTranslation.WaitOne();
 
                 Debug.Assert(_jumpTable == null);
+
                 _jumpTable = new JumpTable(_allocator);
 
                 if (Ptc.State == PtcState.Enabled)
                 {
                     Ptc.LoadTranslations(_funcs, _memory, _jumpTable);
-                    Ptc.MakeAndSaveTranslations(_funcs, _memory, _jumpTable);
+                    Ptc.MakeAndSaveTranslations(_funcs, _memory, _jumpTable, _functionTable);
                 }
 
                 PtcProfiler.Start();
@@ -176,7 +180,7 @@ namespace ARMeilleure.Translation
         {
             if (!_funcs.TryGetValue(address, out TranslatedFunction func))
             {
-                func = Translate(_memory, _jumpTable, address, mode, highCq: false);
+                func = Translate(_memory, _jumpTable, _functionTable, address, mode, highCq: false);
 
                 TranslatedFunction getFunc = _funcs.GetOrAdd(address, func);
 
@@ -190,6 +194,8 @@ namespace ARMeilleure.Translation
                 {
                     PtcProfiler.AddEntry(address, mode, highCq: false);
                 }
+
+                _functionTable.SetValue(address, (int)((ulong)func.FuncPtr - (ulong)JitCache.Base));
             }
 
             if (hintRejit && func.ShouldRejit())
@@ -201,9 +207,9 @@ namespace ARMeilleure.Translation
             return func;
         }
 
-        internal static TranslatedFunction Translate(IMemoryManager memory, JumpTable jumpTable, ulong address, ExecutionMode mode, bool highCq)
+        internal static TranslatedFunction Translate(IMemoryManager memory, JumpTable jumpTable, AddressTable<int> functionTable, ulong address, ExecutionMode mode, bool highCq)
         {
-            ArmEmitterContext context = new ArmEmitterContext(memory, jumpTable, address, highCq, Aarch32Mode.User);
+            ArmEmitterContext context = new ArmEmitterContext(memory, jumpTable, functionTable, address, highCq, Aarch32Mode.User);
 
             Logger.StartPass(PassName.Decoding);
 
