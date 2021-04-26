@@ -36,6 +36,7 @@ namespace ARMeilleure.Translation
 
         internal AddressTable<uint> FunctionTable { get; }
         internal EntryTable<uint> CountTable { get; }
+        internal TranslatorStubs Stubs { get; }
 
         private volatile int _threadCount;
 
@@ -55,10 +56,13 @@ namespace ARMeilleure.Translation
             _backgroundTranslatorEvent = new AutoResetEvent(false);
             _backgroundTranslatorLock = new ReaderWriterLock();
 
-            CountTable = new EntryTable<uint>();
-            FunctionTable = new AddressTable<uint>(fill: uint.MaxValue);
-
             JitCache.Initialize(allocator);
+
+            CountTable = new EntryTable<uint>();
+            FunctionTable = new AddressTable<uint>();
+            Stubs = new TranslatorStubs(this);
+
+            FunctionTable.Fill = JitCache.Offset(Stubs.DispatchStub);
         }
 
         private void TranslateStackedSubs()
@@ -74,6 +78,7 @@ namespace ARMeilleure.Translation
                         _memory,
                         CountTable,
                         FunctionTable,
+                        Stubs,
                         request.Address,
                         request.Mode,
                         highCq: true);
@@ -113,8 +118,8 @@ namespace ARMeilleure.Translation
                 if (Ptc.State == PtcState.Enabled)
                 {
                     Debug.Assert(_funcs.Count == 0);
-                    Ptc.LoadTranslations(_funcs, _memory, CountTable, FunctionTable);
-                    Ptc.MakeAndSaveTranslations(_funcs, _memory, CountTable, FunctionTable);
+                    Ptc.LoadTranslations(_funcs, _memory, CountTable, FunctionTable, Stubs);
+                    Ptc.MakeAndSaveTranslations(_funcs, _memory, CountTable, FunctionTable, Stubs);
                 }
 
                 PtcProfiler.Start();
@@ -189,7 +194,7 @@ namespace ARMeilleure.Translation
         {
             if (!_funcs.TryGetValue(address, out TranslatedFunction func))
             {
-                func = Translate(_memory, CountTable, FunctionTable, address, mode, highCq: false);
+                func = Translate(_memory, CountTable, FunctionTable, Stubs, address, mode, highCq: false);
 
                 TranslatedFunction oldFunc = _funcs.GetOrAdd(address, func);
 
@@ -217,9 +222,7 @@ namespace ARMeilleure.Translation
         {
             if (funcTable.IsValid(guestAddress))
             {
-                uint offset = (uint)((ulong)func.FuncPtr - (ulong)JitCache.Base);
-
-                Volatile.Write(ref funcTable.GetValue(guestAddress), offset);
+                Volatile.Write(ref funcTable.GetValue(guestAddress), JitCache.Offset(func.FuncPtr));
             }
         }
 
@@ -227,6 +230,7 @@ namespace ARMeilleure.Translation
             IMemoryManager memory,
             EntryTable<uint> countTable,
             AddressTable<uint> funcTable,
+            TranslatorStubs stubs,
             ulong address,
             ExecutionMode mode,
             bool highCq)
@@ -235,6 +239,7 @@ namespace ARMeilleure.Translation
                 memory,
                 countTable,
                 funcTable,
+                stubs,
                 address,
                 highCq,
                 mode: Aarch32Mode.User);

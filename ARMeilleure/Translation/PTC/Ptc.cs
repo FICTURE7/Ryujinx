@@ -38,8 +38,8 @@ namespace ARMeilleure.Translation.PTC
 
         internal static readonly Symbol PageTableSymbol = new(SymbolType.Special, 1);
         internal static readonly Symbol CountTableSymbol = new(SymbolType.Special, 2);
-        internal static readonly Symbol FunctionTableSymbol = new(SymbolType.Special, 3);
-        internal static readonly Symbol JitCacheSymbol = new(SymbolType.Special, 4);
+        internal static readonly Symbol JitCacheSymbol = new(SymbolType.Special, 3);
+        internal static readonly Symbol DispatchStubSymbol = new(SymbolType.Special, 4);
 
         private const byte FillingByte = 0x00;
         private const CompressionLevel SaveCompressionLevel = CompressionLevel.Fastest;
@@ -512,7 +512,8 @@ namespace ARMeilleure.Translation.PTC
             ConcurrentDictionary<ulong, TranslatedFunction> funcs,
             IMemoryManager memory,
             EntryTable<uint> countTable,
-            AddressTable<uint> funcTable)
+            AddressTable<uint> funcTable,
+            TranslatorStubs stubs)
         {
             if (AreCarriersEmpty())
             {
@@ -571,7 +572,7 @@ namespace ARMeilleure.Translation.PTC
                     {
                         RelocEntry[] relocEntries = GetRelocEntries(relocsReader, infoEntry.RelocEntriesCount);
 
-                        PatchCode(code, relocEntries, memory.PageTablePointer, countTable, funcTable, out callCounter);
+                        PatchCode(code, relocEntries, memory.PageTablePointer, countTable, funcTable, stubs, out callCounter);
                     }
 
                     UnwindInfo unwindInfo = ReadUnwindInfo(unwindInfosReader);
@@ -649,6 +650,7 @@ namespace ARMeilleure.Translation.PTC
             IntPtr pageTablePointer,
             EntryTable<uint> countTable,
             AddressTable<uint> funcTable,
+            TranslatorStubs stubs,
             out Counter<uint> callCounter)
         {
             callCounter = null;
@@ -686,9 +688,9 @@ namespace ARMeilleure.Translation.PTC
 
                     unsafe { imm = (IntPtr)Unsafe.AsPointer(ref callCounter.Value); }
                 }
-                else if (symbol == FunctionTableSymbol)
+                else if (symbol == DispatchStubSymbol)
                 {
-                    imm = funcTable.Base;
+                    imm = stubs.DispatchStub;
                 }
                 else if (symbol == JitCacheSymbol)
                 {
@@ -777,7 +779,8 @@ namespace ARMeilleure.Translation.PTC
             ConcurrentDictionary<ulong, TranslatedFunction> funcs,
             IMemoryManager memory,
             EntryTable<uint> countTable,
-            AddressTable<uint> funcTable)
+            AddressTable<uint> funcTable,
+            TranslatorStubs stubs)
         {
             var profiledFuncsToTranslate = PtcProfiler.GetProfiledFuncsToTranslate(funcs);
 
@@ -822,6 +825,7 @@ namespace ARMeilleure.Translation.PTC
                         memory,
                         countTable,
                         funcTable,
+                        stubs,
                         address,
                         item.funcProfile.Mode,
                         item.funcProfile.HighCq);
