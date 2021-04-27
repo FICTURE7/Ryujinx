@@ -62,7 +62,7 @@ namespace ARMeilleure.Translation
             FunctionTable = new AddressTable<uint>();
             Stubs = new TranslatorStubs(this);
 
-            FunctionTable.Fill = JitCache.Offset(Stubs.DispatchStub);
+            FunctionTable.Fill = JitCache.Offset(Stubs.SlowDispatchStub);
         }
 
         private void TranslateStackedSubs()
@@ -367,7 +367,11 @@ namespace ARMeilleure.Translation
 
                 if (block.Exit)
                 {
-                    InstEmitFlowHelper.EmitTailContinue(context, Const(block.Address));
+                    // Left option here as it may be useful if we need to return to managed rather than tail call in
+                    // future. (eg. for debug)
+                    bool useReturns = false;
+
+                    InstEmitFlowHelper.EmitVirtualJump(context, Const(block.Address), isReturn: useReturns);
                 }
                 else
                 {
