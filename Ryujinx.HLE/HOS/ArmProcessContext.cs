@@ -12,10 +12,10 @@ namespace Ryujinx.HLE.HOS
 
         public IVirtualMemoryManager AddressSpace => _memoryManager;
 
-        public ArmProcessContext(MemoryManager memoryManager)
+        public ArmProcessContext(MemoryManager memoryManager, bool for64Bit)
         {
             _memoryManager = memoryManager;
-            _cpuContext = new CpuContext(memoryManager);
+            _cpuContext = new CpuContext(memoryManager, for64Bit);
         }
 
         public void Execute(ExecutionContext context, ulong codeAddress) => _cpuContext.Execute(context, codeAddress);
