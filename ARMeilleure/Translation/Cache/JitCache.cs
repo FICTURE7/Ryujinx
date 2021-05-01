@@ -2,6 +2,7 @@ using ARMeilleure.CodeGen;
 using ARMeilleure.CodeGen.Unwinding;
 using ARMeilleure.Memory;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -14,13 +15,13 @@ namespace ARMeilleure.Translation.Cache
         private const int PageMask = PageSize - 1;
 
         private const int CodeAlignment = 4; // Bytes.
-        private const int CacheSize = 2047 * 1024 * 1024;
+        public const int CacheSize = 128 * 1024 * 1024;
+
+        public static ConcurrentQueue<IntPtr> PurgeQueue { get; } = new ConcurrentQueue<IntPtr>();
 
         private static ReservedRegion _jitRegion;
-
         private static CacheMemoryAllocator _cacheAllocator;
-
-        private static readonly List<CacheEntry> _cacheEntries = new List<CacheEntry>();
+        private static List<CacheEntry> _cacheEntries = new List<CacheEntry>();
 
         private static readonly object _lock = new object();
         private static bool _initialized;
@@ -55,6 +56,19 @@ namespace ARMeilleure.Translation.Cache
                 Debug.Assert(_initialized);
 
                 int funcOffset = Allocate(code.Length);
+
+                // If we fail to allocate, try to purge the purge queue.
+                if (funcOffset < 0)
+                {
+                    Purge(code.Length);
+
+                    funcOffset = Allocate(code.Length);
+                }
+
+                if (funcOffset < 0)
+                {
+                    throw new OutOfMemoryException("JIT Cache exhausted.");
+                }
 
                 IntPtr funcPtr = _jitRegion.Pointer + funcOffset;
 
@@ -115,7 +129,7 @@ namespace ARMeilleure.Translation.Cache
 
             if (allocOffset < 0)
             {
-                throw new OutOfMemoryException("JIT Cache exhausted.");
+                return allocOffset;
             }
 
             _jitRegion.ExpandIfNeeded((ulong)allocOffset + (ulong)codeSize);
@@ -177,6 +191,34 @@ namespace ARMeilleure.Translation.Cache
 
             entry = default;
             return false;
+        }
+
+        public static void Purge(int size)
+        {
+            int count = 0;
+            int freed = 0;
+
+            lock (_lock)
+            {
+                _cacheAllocator.Dump();
+
+                while (PurgeQueue.TryDequeue(out IntPtr ptr))
+                {
+                    int offset = (int)((long)ptr - (long)_jitRegion.Pointer);
+                    bool found = TryFind(offset, out var entry);
+
+                    Debug.Assert(found);
+
+                    Unmap(ptr);
+
+                    freed += entry.Size;
+                    count += 1;
+                }
+
+                Console.WriteLine($"[JIT]: Purged cache for {size} bytes -- freed {freed} bytes from {count} functions.");
+
+                _cacheAllocator.Dump();
+            }
         }
     }
 }

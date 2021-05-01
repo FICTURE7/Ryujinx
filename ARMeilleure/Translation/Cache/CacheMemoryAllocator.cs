@@ -92,5 +92,15 @@ namespace ARMeilleure.Translation.Cache
 
             _blocks.Insert(index, block);
         }
+
+        public void Dump()
+        {
+            Console.WriteLine("[JIT]: Cache allocator free blocks:");
+
+            for (int i = 0; i < _blocks.Count; i++)
+            {
+                Console.WriteLine($"  [{i}] [{_blocks[i].Offset}, {_blocks[i].Size})");
+            }
+        }
     }
 }

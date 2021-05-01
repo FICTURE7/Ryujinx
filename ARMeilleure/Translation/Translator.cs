@@ -28,7 +28,6 @@ namespace ARMeilleure.Translation
         private readonly IMemoryManager _memory;
 
         private readonly ConcurrentDictionary<ulong, TranslatedFunction> _funcs;
-        private readonly ConcurrentQueue<KeyValuePair<ulong, TranslatedFunction>> _oldFuncs;
 
         private readonly ConcurrentDictionary<ulong, object> _backgroundSet;
         private readonly ConcurrentStack<RejitRequest> _backgroundStack;
@@ -50,7 +49,6 @@ namespace ARMeilleure.Translation
             _memory = memory;
 
             _funcs = new ConcurrentDictionary<ulong, TranslatedFunction>();
-            _oldFuncs = new ConcurrentQueue<KeyValuePair<ulong, TranslatedFunction>>();
 
             _backgroundSet = new ConcurrentDictionary<ulong, object>();
             _backgroundStack = new ConcurrentStack<RejitRequest>();
@@ -456,7 +454,7 @@ namespace ARMeilleure.Translation
 
         private void EnqueueForDeletion(ulong guestAddress, TranslatedFunction func)
         {
-            _oldFuncs.Enqueue(new(guestAddress, func));
+            JitCache.PurgeQueue.Enqueue(func.FuncPtr);
         }
 
         private void ClearJitCache()
@@ -473,12 +471,7 @@ namespace ARMeilleure.Translation
 
             _funcs.Clear();
 
-            while (_oldFuncs.TryDequeue(out var kv))
-            {
-                JitCache.Unmap(kv.Value.FuncPtr);
-
-                kv.Value.CallCounter?.Dispose();
-            }
+            JitCache.Purge(JitCache.CacheSize);
         }
 
         private void ClearRejitQueue(bool allowRequeue)
