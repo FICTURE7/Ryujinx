@@ -512,7 +512,7 @@ namespace ARMeilleure.Translation.PTC
             ConcurrentDictionary<ulong, TranslatedFunction> funcs,
             IMemoryManager memory,
             EntryTable<uint> countTable,
-            AddressTable<uint> funcTable,
+            AddressTable<ulong> funcTable,
             TranslatorStubs stubs)
         {
             if (AreCarriersEmpty())
@@ -649,7 +649,7 @@ namespace ARMeilleure.Translation.PTC
             RelocEntry[] relocEntries,
             IntPtr pageTablePointer,
             EntryTable<uint> countTable,
-            AddressTable<uint> funcTable,
+            AddressTable<ulong> funcTable,
             TranslatorStubs stubs,
             out Counter<uint> callCounter)
         {
@@ -779,7 +779,7 @@ namespace ARMeilleure.Translation.PTC
             ConcurrentDictionary<ulong, TranslatedFunction> funcs,
             IMemoryManager memory,
             EntryTable<uint> countTable,
-            AddressTable<uint> funcTable,
+            AddressTable<ulong> funcTable,
             TranslatorStubs stubs)
         {
             var profiledFuncsToTranslate = PtcProfiler.GetProfiledFuncsToTranslate(funcs);
