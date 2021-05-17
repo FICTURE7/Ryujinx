@@ -507,12 +507,7 @@ namespace ARMeilleure.Translation.PTC
             }
         }
 
-        internal static void LoadTranslations(
-            ConcurrentDictionary<ulong, TranslatedFunction> funcs,
-            IMemoryManager memory,
-            EntryTable<uint> countTable,
-            AddressTable<ulong> funcTable,
-            TranslatorStubs stubs)
+        internal static void LoadTranslations(Translator translator)
         {
             if (AreCarriersEmpty())
             {
@@ -543,7 +538,7 @@ namespace ARMeilleure.Translation.PTC
                         continue;
                     }
 
-                    bool isEntryChanged = infoEntry.Hash != ComputeHash(memory, infoEntry.Address, infoEntry.GuestSize);
+                    bool isEntryChanged = infoEntry.Hash != ComputeHash(translator.Memory, infoEntry.Address, infoEntry.GuestSize);
 
                     if (isEntryChanged || (!infoEntry.HighCq && PtcProfiler.ProfiledFuncs.TryGetValue(infoEntry.Address, out var value) && value.HighCq))
                     {
@@ -571,16 +566,16 @@ namespace ARMeilleure.Translation.PTC
                     {
                         RelocEntry[] relocEntries = GetRelocEntries(relocsReader, infoEntry.RelocEntriesCount);
 
-                        PatchCode(code, relocEntries, memory.PageTablePointer, countTable, funcTable, stubs, out callCounter);
+                        PatchCode(translator, code, relocEntries, out callCounter);
                     }
 
                     UnwindInfo unwindInfo = ReadUnwindInfo(unwindInfosReader);
 
                     TranslatedFunction func = FastTranslate(code, callCounter, infoEntry.GuestSize, unwindInfo, infoEntry.HighCq);
 
-                    Translator.RegisterFunction(funcTable, infoEntry.Address, func);
+                    translator.RegisterFunction(infoEntry.Address, func);
 
-                    bool isAddressUnique = funcs.TryAdd(infoEntry.Address, func);
+                    bool isAddressUnique = translator.Functions.TryAdd(infoEntry.Address, func);
 
                     Debug.Assert(isAddressUnique, $"The address 0x{infoEntry.Address:X16} is not unique.");
                 }
@@ -593,7 +588,7 @@ namespace ARMeilleure.Translation.PTC
                 throw new Exception("The length of a memory stream has changed, or its position has not reached or has exceeded its end.");
             }
 
-            Logger.Info?.Print(LogClass.Ptc, $"{funcs.Count} translated functions loaded");
+            Logger.Info?.Print(LogClass.Ptc, $"{translator.Functions.Count} translated functions loaded");
         }
 
         private static int GetEntriesCount()
@@ -643,14 +638,7 @@ namespace ARMeilleure.Translation.PTC
             return relocEntries;
         }
 
-        private static void PatchCode(
-            Span<byte> code,
-            RelocEntry[] relocEntries,
-            IntPtr pageTablePointer,
-            EntryTable<uint> countTable,
-            AddressTable<ulong> funcTable,
-            TranslatorStubs stubs,
-            out Counter<uint> callCounter)
+        private static void PatchCode(Translator translator, Span<byte> code, RelocEntry[] relocEntries, out Counter<uint> callCounter)
         {
             callCounter = null;
 
@@ -663,9 +651,9 @@ namespace ARMeilleure.Translation.PTC
                 {
                     ulong guestAddress = symbol.Value;
 
-                    if (funcTable.IsValid(guestAddress))
+                    if (translator.FunctionTable.IsValid(guestAddress))
                     {
-                        unsafe { imm = (IntPtr)Unsafe.AsPointer(ref funcTable.GetValue(guestAddress)); }
+                        unsafe { imm = (IntPtr)Unsafe.AsPointer(ref translator.FunctionTable.GetValue(guestAddress)); }
                     }
                 }
                 else if (symbol.Type == SymbolType.DelegateTable)
@@ -679,17 +667,17 @@ namespace ARMeilleure.Translation.PTC
                 }
                 else if (symbol == PageTableSymbol)
                 {
-                    imm = pageTablePointer;
+                    imm = translator.Memory.PageTablePointer;
                 }
                 else if (symbol == CountTableSymbol)
                 {
-                    callCounter = new Counter<uint>(countTable);
+                    callCounter = new Counter<uint>(translator.CountTable);
 
                     unsafe { imm = (IntPtr)Unsafe.AsPointer(ref callCounter.Value); }
                 }
                 else if (symbol == DispatchStubSymbol)
                 {
-                    imm = stubs.DispatchStub;
+                    imm = translator.Stubs.DispatchStub;
                 }
 
                 if (imm == null)
@@ -770,14 +758,9 @@ namespace ARMeilleure.Translation.PTC
             }
         }
 
-        internal static void MakeAndSaveTranslations(
-            ConcurrentDictionary<ulong, TranslatedFunction> funcs,
-            IMemoryManager memory,
-            EntryTable<uint> countTable,
-            AddressTable<ulong> funcTable,
-            TranslatorStubs stubs)
+        internal static void MakeAndSaveTranslations(Translator translator)
         {
-            var profiledFuncsToTranslate = PtcProfiler.GetProfiledFuncsToTranslate(funcs);
+            var profiledFuncsToTranslate = PtcProfiler.GetProfiledFuncsToTranslate(translator.Functions);
 
             _translateCount = 0;
             _translateTotalCount = profiledFuncsToTranslate.Count;
@@ -816,22 +799,15 @@ namespace ARMeilleure.Translation.PTC
 
                     Debug.Assert(PtcProfiler.IsAddressInStaticCodeRange(address));
 
-                    TranslatedFunction func = Translator.Translate(
-                        memory,
-                        countTable,
-                        funcTable,
-                        stubs,
-                        address,
-                        item.funcProfile.Mode,
-                        item.funcProfile.HighCq);
+                    TranslatedFunction func = translator.Translate(address, item.funcProfile.Mode, item.funcProfile.HighCq);
 
-                    bool isAddressUnique = funcs.TryAdd(address, func);
+                    bool isAddressUnique = translator.Functions.TryAdd(address, func);
 
                     Debug.Assert(isAddressUnique, $"The address 0x{address:X16} is not unique.");
 
                     Interlocked.Increment(ref _translateCount);
 
-                    Translator.RegisterFunction(funcTable, address, func);
+                    translator.RegisterFunction(address, func);
 
                     if (State != PtcState.Enabled)
                     {
