@@ -18,7 +18,8 @@ namespace ARMeilleure.State
             public ulong ExclusiveAddress;
             public ulong ExclusiveValueLow;
             public ulong ExclusiveValueHigh;
-            public bool Running;
+            public int Running;
+            public int InstrumentEdge;
         }
 
         private static NativeCtxStorage _dummyStorage = new NativeCtxStorage();
@@ -118,8 +119,8 @@ namespace ARMeilleure.State
         public int GetCounter() => GetStorage().Counter;
         public void SetCounter(int value) => GetStorage().Counter = value;
 
-        public bool GetRunning() => GetStorage().Running;
-        public void SetRunning(bool value) => GetStorage().Running = value;
+        public bool GetRunning() => GetStorage().Running != 0;
+        public void SetRunning(bool value) => GetStorage().Running = value ? 1 : 0;
 
         public unsafe static int GetRegisterOffset(Register reg)
         {
@@ -184,6 +185,11 @@ namespace ARMeilleure.State
         public static int GetRunningOffset()
         {
             return StorageOffset(ref _dummyStorage, ref _dummyStorage.Running);
+        }
+
+        public static int GetInstrumentEdgeOffset()
+        {
+            return StorageOffset(ref _dummyStorage, ref _dummyStorage.InstrumentEdge);
         }
 
         private static int StorageOffset<T>(ref NativeCtxStorage storage, ref T target)

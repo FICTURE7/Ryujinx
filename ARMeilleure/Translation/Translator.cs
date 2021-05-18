@@ -256,7 +256,7 @@ namespace ARMeilleure.Translation
 
             Logger.StartPass(PassName.Decoding);
 
-            Block[] blocks = Decoder.Decode(Memory, address, mode, highCq, singleBlock: false);
+            Block[] blocks = Decoder.Decode(Memory, address, mode, highCq, singleBlock: !highCq);
 
             Logger.EndPass(PassName.Decoding);
 
@@ -377,11 +377,9 @@ namespace ARMeilleure.Translation
 
                 if (block.Exit)
                 {
-                    // Left option here as it may be useful if we need to return to managed rather than tail call in
-                    // future. (eg. for debug)
-                    bool useReturns = false;
-
-                    InstEmitFlowHelper.EmitVirtualJump(context, Const(block.Address), isReturn: useReturns);
+                    // The Decoder may produce an incomplete control flow graph of the function which we're emitting,
+                    // as such we try to also allow the remainder of the function to tier up to HCQ.
+                    InstEmitFlowHelper.EmitContinuation(context, block.Address, instrument: context.HighCq);
                 }
                 else
                 {
@@ -434,9 +432,16 @@ namespace ARMeilleure.Translation
             const int MinsCallForRejit = 100;
 
             counter = new Counter<uint>(context.CountTable);
-
+            
             Operand lblEnd = Label();
 
+            // Check if we're counting the incoming transition.
+            Operand nativeContext = context.LoadArgument(OperandType.I64, 0);
+            Operand instrumentEdgeAddr = context.Add(nativeContext, Const((ulong)NativeContext.GetInstrumentEdgeOffset()));
+            Operand instrumentEdge = context.Load(OperandType.I32, instrumentEdgeAddr);
+            context.BranchIfFalse(lblEnd, instrumentEdge);
+
+            // Check if we've exceeded the rejit threshold.
             Operand address = Const(ref counter.Value, Ptc.CountTableSymbol);
             Operand curCount = context.Load(OperandType.I32, address);
             Operand count = context.Add(curCount, Const(1));

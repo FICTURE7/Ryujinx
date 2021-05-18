@@ -140,16 +140,32 @@ namespace ARMeilleure.Instructions
             return value;
         }
 
+        public static void EmitContinuation(ArmEmitterContext context, ulong immediate, bool instrument)
+        {
+            // Left option here as it may be useful if we need to return to managed rather than tail call in
+            // future. (eg. for debug)
+            bool useReturns = false;
+
+            if (useReturns)
+            {
+                context.Return(Const(immediate));
+            }
+            else
+            {
+                EmitTableBranch(context, Const(immediate), isJump: true, instrument);
+            }
+        }
+
         public static void EmitCall(ArmEmitterContext context, ulong immediate)
         {
             bool isRecursive = immediate == context.EntryAddress;
 
-            EmitTableBranch(context, Const(immediate), isRecursive);
+            EmitTableBranch(context, Const(immediate), isRecursive, instrument: true);
         }
 
         public static void EmitVirtualCall(ArmEmitterContext context, Operand target)
         {
-            EmitTableBranch(context, target, isJump: false);
+            EmitTableBranch(context, target, isJump: false, instrument: true);
         }
 
         public static void EmitVirtualJump(ArmEmitterContext context, Operand target, bool isReturn)
@@ -160,11 +176,11 @@ namespace ARMeilleure.Instructions
             }
             else
             {
-                EmitTableBranch(context, target, isJump: true);
+                EmitTableBranch(context, target, isJump: true, instrument: true);
             }
         }
 
-        private static void EmitTableBranch(ArmEmitterContext context, Operand guestAddress, bool isJump)
+        private static void EmitTableBranch(ArmEmitterContext context, Operand guestAddress, bool isJump, bool instrument)
         {
             context.StoreToContext();
 
@@ -177,7 +193,9 @@ namespace ARMeilleure.Instructions
             // next translation.
             Operand nativeContext = context.LoadArgument(OperandType.I64, 0);
             Operand dispAddressAddr = context.Add(nativeContext, Const((ulong)NativeContext.GetDispatchAddressOffset()));
+            Operand instrumentEdgeAddr = context.Add(nativeContext, Const((ulong)NativeContext.GetInstrumentEdgeOffset()));
             context.Store(dispAddressAddr, guestAddress);
+            context.Store(instrumentEdgeAddr, Const(instrument));
 
             Operand hostAddress;
 
