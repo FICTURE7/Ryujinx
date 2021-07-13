@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 
 namespace Ryujinx.Graphics.GAL
 {
@@ -15,6 +16,7 @@ namespace Ryujinx.Graphics.GAL
         ITexture CreateView(TextureCreateInfo info, int firstLayer, int firstLevel);
 
         byte[] GetData();
+        IMemoryOwner<byte> GetData(MemoryPool<byte> pool);
 
         void SetData(ReadOnlySpan<byte> data);
         void SetData(ReadOnlySpan<byte> data, int layer, int level);

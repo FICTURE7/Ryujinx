@@ -1,5 +1,7 @@
 using Ryujinx.Common;
+using Ryujinx.Common.Memory;
 using System;
+using System.Buffers;
 using System.Runtime.Intrinsics;
 using static Ryujinx.Graphics.Texture.BlockLinearConstants;
 
@@ -93,7 +95,7 @@ namespace Ryujinx.Graphics.Texture
             };
         }
 
-        public static Span<byte> ConvertBlockLinearToLinear(
+        public static IMemoryOwner<byte> ConvertBlockLinearToLinear(
             int width,
             int height,
             int depth,
@@ -118,7 +120,8 @@ namespace Ryujinx.Graphics.Texture
                 blockHeight,
                 bytesPerPixel);
 
-            Span<byte> output = new byte[outSize];
+            IMemoryOwner<byte> result = ArenaMemoryPool<byte>.Shared.Rent(outSize);
+            Span<byte> output = result.Memory.Span;
 
             int outOffs = 0;
 
@@ -184,6 +187,7 @@ namespace Ryujinx.Graphics.Texture
                             for (int z = 0; z < d; z++)
                             {
                                 layoutConverter.SetZ(z);
+
                                 for (int y = 0; y < h; y++)
                                 {
                                     layoutConverter.SetY(y);
@@ -240,10 +244,11 @@ namespace Ryujinx.Graphics.Texture
                     _ => throw new NotSupportedException($"Unable to convert ${bytesPerPixel} bpp pixel format.")
                 };
             }
-            return output;
+
+            return result;
         }
 
-        public static Span<byte> ConvertLinearStridedToLinear(
+        public static IMemoryOwner<byte> ConvertLinearStridedToLinear(
             int width,
             int height,
             int blockWidth,
@@ -258,7 +263,8 @@ namespace Ryujinx.Graphics.Texture
             int outStride = BitUtils.AlignUp(w * bytesPerPixel, HostStrideAlignment);
             int lineSize = Math.Min(stride, outStride);
 
-            Span<byte> output = new byte[h * outStride];
+            IMemoryOwner<byte> result = ArenaMemoryPool<byte>.Shared.Rent(h * outStride);
+            Span<byte> output = result.Memory.Span;
 
             int outOffs = 0;
             int inOffs = 0;
@@ -271,7 +277,7 @@ namespace Ryujinx.Graphics.Texture
                 outOffs += outStride;
             }
 
-            return output;
+            return result;
         }
 
         public static void ConvertLinearToBlockLinear(
@@ -358,7 +364,7 @@ namespace Ryujinx.Graphics.Texture
             };
         }
 
-        public static Span<byte> ConvertLinearToBlockLinear(
+        public static IMemoryOwner<byte> ConvertLinearToBlockLinear(
             int width,
             int height,
             int depth,
@@ -373,7 +379,8 @@ namespace Ryujinx.Graphics.Texture
             SizeInfo sizeInfo,
             ReadOnlySpan<byte> data)
         {
-            Span<byte> output = new byte[sizeInfo.TotalSize];
+            IMemoryOwner<byte> block = ArenaMemoryPool<byte>.Shared.Rent(sizeInfo.TotalSize);
+            Span<byte> output = block.Memory.Span;
 
             int inOffs = 0;
 
@@ -496,10 +503,10 @@ namespace Ryujinx.Graphics.Texture
                 };
             }
 
-            return output;
+            return block;
         }
 
-        public static Span<byte> ConvertLinearToLinearStrided(
+        public static IMemoryOwner<byte> ConvertLinearToLinearStrided(
             int width,
             int height,
             int blockWidth,
@@ -514,7 +521,8 @@ namespace Ryujinx.Graphics.Texture
             int inStride = BitUtils.AlignUp(w * bytesPerPixel, HostStrideAlignment);
             int lineSize = width * bytesPerPixel;
 
-            Span<byte> output = new byte[h * stride];
+            IMemoryOwner<byte> block = ArenaMemoryPool<byte>.Shared.Rent(h * stride);
+            Span<byte> output = block.Memory.Span;
 
             int inOffs = 0;
             int outOffs = 0;
@@ -527,7 +535,7 @@ namespace Ryujinx.Graphics.Texture
                 outOffs += stride;
             }
 
-            return output;
+            return block;
         }
 
         private static int GetTextureSize(

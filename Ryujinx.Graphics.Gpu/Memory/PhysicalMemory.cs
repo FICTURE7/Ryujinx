@@ -103,6 +103,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
             if (range.Count == 1)
             {
                 var singleRange = range.GetSubRange(0);
+
                 return _cpuMemory.GetSpan(singleRange.Address, (int)singleRange.Size, tracked);
             }
             else
@@ -115,7 +116,9 @@ namespace Ryujinx.Graphics.Gpu.Memory
                 {
                     var currentRange = range.GetSubRange(i);
                     int size = (int)currentRange.Size;
+
                     _cpuMemory.GetSpan(currentRange.Address, size, tracked).CopyTo(data.Slice(offset, size));
+
                     offset += size;
                 }
 

@@ -7,6 +7,7 @@ using Ryujinx.Graphics.OpenGL.Image;
 using Ryujinx.Graphics.OpenGL.Queries;
 using Ryujinx.Graphics.Shader;
 using System;
+using System.Buffers;
 
 namespace Ryujinx.Graphics.OpenGL
 {
@@ -86,6 +87,11 @@ namespace Ryujinx.Graphics.OpenGL
         public void DeleteBuffer(BufferHandle buffer)
         {
             Buffer.Delete(buffer);
+        }
+
+        public IMemoryOwner<byte> GetBufferData(BufferHandle buffer, int offset, int size, MemoryPool<byte> pool)
+        {
+            return Buffer.GetData(buffer, offset, size, pool);
         }
 
         public byte[] GetBufferData(BufferHandle buffer, int offset, int size)

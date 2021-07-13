@@ -1,6 +1,7 @@
 using OpenTK.Graphics.OpenGL;
 using Ryujinx.Graphics.GAL;
 using System;
+using System.Buffers;
 
 namespace Ryujinx.Graphics.OpenGL.Image
 {
@@ -62,7 +63,7 @@ namespace Ryujinx.Graphics.OpenGL.Image
 
             GL.BindTexture(target, Handle);
 
-            int[] swizzleRgba = new int[]
+            Span<int> swizzleRgba = stackalloc int[]
             {
                 (int)Info.SwizzleR.Convert(),
                 (int)Info.SwizzleG.Convert(),
@@ -79,7 +80,13 @@ namespace Ryujinx.Graphics.OpenGL.Image
                 swizzleRgba[2] = temp;
             }
 
-            GL.TexParameter(target, TextureParameterName.TextureSwizzleRgba, swizzleRgba);
+            unsafe
+            {
+                fixed (int* ptr = swizzleRgba)
+                {
+                    GL.TexParameter(target, TextureParameterName.TextureSwizzleRgba, ptr);
+                }
+            }
 
             int maxLevel = Info.Levels - 1;
 
@@ -117,6 +124,29 @@ namespace Ryujinx.Graphics.OpenGL.Image
         public void CopyTo(ITexture destination, Extents2D srcRegion, Extents2D dstRegion, bool linearFilter)
         {
             _renderer.TextureCopy.Copy(this, (TextureView)destination, srcRegion, dstRegion, linearFilter);
+        }
+
+        public IMemoryOwner<byte> GetData(MemoryPool<byte> pool)
+        {
+            int size = 0;
+
+            for (int level = 0; level < Info.Levels; level++)
+            {
+                size += Info.GetMipSize(level);
+            }
+
+            IMemoryOwner<byte> block = pool.Rent(size);
+            Span<byte> data = block.Memory.Span;
+
+            unsafe
+            {
+                fixed (byte* ptr = data)
+                {
+                    WriteTo((IntPtr)ptr);
+                }
+            }
+
+            return block;
         }
 
         public byte[] GetData()

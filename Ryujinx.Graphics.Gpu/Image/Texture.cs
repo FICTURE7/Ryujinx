@@ -1,11 +1,13 @@
 using Ryujinx.Common;
 using Ryujinx.Common.Logging;
+using Ryujinx.Common.Memory;
 using Ryujinx.Graphics.GAL;
 using Ryujinx.Graphics.Gpu.Memory;
 using Ryujinx.Graphics.Texture;
 using Ryujinx.Graphics.Texture.Astc;
 using Ryujinx.Memory.Range;
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 
@@ -239,6 +241,7 @@ namespace Ryujinx.Graphics.Gpu.Image
                 HostTexture = _context.Renderer.CreateTexture(createInfo, ScaleFactor);
 
                 SynchronizeMemory(); // Load the data.
+
                 if (ScaleMode == TextureScaleMode.Scaled)
                 {
                     SetScale(GraphicsConfig.ResScale); // Scale the data up.
@@ -530,6 +533,7 @@ namespace Ryujinx.Graphics.Gpu.Image
             if (storage == null)
             {
                 TextureCreateInfo createInfo = TextureCache.GetCreateInfo(Info, _context.Capabilities, scale);
+
                 storage = _context.Renderer.CreateTexture(createInfo, scale);
             }
 
@@ -673,17 +677,19 @@ namespace Ryujinx.Graphics.Gpu.Image
                 else
                 {
                     bool dataMatches = _currentData != null && data.SequenceEqual(_currentData);
-                    _currentData = data.ToArray();
+
                     if (dataMatches)
                     {
                         return;
                     }
+
+                    _currentData = data.ToArray();
                 }
             }
 
-            data = ConvertToHostCompatibleFormat(data);
+            using var block = ConvertToHostCompatibleFormat(data);
 
-            HostTexture.SetData(data);
+            HostTexture.SetData(block.Memory.Span);
 
             _hasData = true;
         }
@@ -727,7 +733,7 @@ namespace Ryujinx.Graphics.Gpu.Image
         /// </summary>
         /// <param name="data">Data to be converted</param>
         /// <returns>Converted data</returns>
-        public ReadOnlySpan<byte> ConvertToHostCompatibleFormat(ReadOnlySpan<byte> data, int level = 0, bool single = false)
+        public IMemoryOwner<byte> ConvertToHostCompatibleFormat(ReadOnlySpan<byte> data, int level = 0, bool single = false)
         {
             int width = Info.Width;
             int height = Info.Height;
@@ -740,9 +746,11 @@ namespace Ryujinx.Graphics.Gpu.Image
             height = Math.Max(height >> level, 1);
             depth = Math.Max(depth >> level, 1);
 
+            IMemoryOwner<byte> block;
+
             if (Info.IsLinear)
             {
-                data = LayoutConverter.ConvertLinearStridedToLinear(
+                block = LayoutConverter.ConvertLinearStridedToLinear(
                     width,
                     height,
                     Info.FormatInfo.BlockWidth,
@@ -753,7 +761,7 @@ namespace Ryujinx.Graphics.Gpu.Image
             }
             else
             {
-                data = LayoutConverter.ConvertBlockLinearToLinear(
+                block = LayoutConverter.ConvertBlockLinearToLinear(
                     width,
                     height,
                     depth,
@@ -767,6 +775,7 @@ namespace Ryujinx.Graphics.Gpu.Image
                     Info.GobBlocksInTileX,
                     _sizeInfo,
                     data);
+
             }
 
             // Handle compressed cases not supported by the host:
@@ -775,7 +784,7 @@ namespace Ryujinx.Graphics.Gpu.Image
             if (!_context.Capabilities.SupportsAstcCompression && Info.FormatInfo.Format.IsAstc())
             {
                 if (!AstcDecoder.TryDecodeToRgba8P(
-                    data.ToArray(),
+                    block.Memory,
                     Info.FormatInfo.BlockWidth,
                     Info.FormatInfo.BlockHeight,
                     width,
@@ -783,25 +792,26 @@ namespace Ryujinx.Graphics.Gpu.Image
                     depth,
                     levels,
                     layers,
-                    out Span<byte> decoded))
+                    out IMemoryOwner<byte> decoded))
                 {
                     string texInfo = $"{Info.Target} {Info.FormatInfo.Format} {Info.Width}x{Info.Height}x{Info.DepthOrLayers} levels {Info.Levels}";
 
                     Logger.Debug?.Print(LogClass.Gpu, $"Invalid ASTC texture at 0x{Info.GpuAddress:X} ({texInfo}).");
                 }
 
-                data = decoded;
+                block.Dispose();
+                block = decoded;
             }
             else if (Target == Target.Texture3D && Info.FormatInfo.Format.IsBc4())
             {
-                data = BCnDecoder.DecodeBC4(data, width, height, depth, levels, layers, Info.FormatInfo.Format == Format.Bc4Snorm);
+                block = BCnDecoder.DecodeBC4(data, width, height, depth, levels, layers, Info.FormatInfo.Format == Format.Bc4Snorm);
             }
             else if (Target == Target.Texture3D && Info.FormatInfo.Format.IsBc5())
             {
-                data = BCnDecoder.DecodeBC5(data, width, height, depth, levels, layers, Info.FormatInfo.Format == Format.Bc5Snorm);
+                block = BCnDecoder.DecodeBC5(data, width, height, depth, levels, layers, Info.FormatInfo.Format == Format.Bc5Snorm);
             }
 
-            return data;
+            return block;
         }
 
         /// <summary>
@@ -816,18 +826,22 @@ namespace Ryujinx.Graphics.Gpu.Image
         public void Flush(bool tracked = true)
         {
             IsModified = false;
+
             if (TextureCompatibility.IsFormatHostIncompatible(Info, _context.Capabilities))
             {
                 return; // Flushing this format is not supported, as it may have been converted to another host format.
             }
 
+            using var block = GetTextureDataFromGpu(tracked);
+            var data = block.Memory.Span;
+
             if (tracked)
             {
-                _physicalMemory.Write(Range, GetTextureDataFromGpu(tracked));
+                _physicalMemory.Write(Range, data);
             }
             else
             {
-                _physicalMemory.WriteUntracked(Range, GetTextureDataFromGpu(tracked));
+                _physicalMemory.WriteUntracked(Range, data);
             }
         }
 
@@ -846,6 +860,7 @@ namespace Ryujinx.Graphics.Gpu.Image
             _context.Renderer.BackgroundContextAction(() =>
             {
                 IsModified = false;
+
                 if (TextureCompatibility.IsFormatHostIncompatible(Info, _context.Capabilities))
                 {
                     return; // Flushing this format is not supported, as it may have been converted to another host format.
@@ -858,13 +873,16 @@ namespace Ryujinx.Graphics.Gpu.Image
                 }
 
                 ITexture texture = HostTexture;
+
                 if (ScaleFactor != 1f)
                 {
                     // If needed, create a texture to flush back to host at 1x scale.
                     texture = _flushHostTexture = GetScaledHostTexture(1f, _flushHostTexture);
                 }
 
-                _physicalMemory.WriteUntracked(Range, GetTextureDataFromGpu(false, texture));
+                using var block = GetTextureDataFromGpu(false, texture);
+
+                _physicalMemory.WriteUntracked(Range, block.Memory.Span);
             });
         }
 
@@ -876,31 +894,35 @@ namespace Ryujinx.Graphics.Gpu.Image
         /// This is not cheap, avoid doing that unless strictly needed.
         /// </remarks>
         /// <returns>Host texture data</returns>
-        private Span<byte> GetTextureDataFromGpu(bool blacklist, ITexture texture = null)
+        private IMemoryOwner<byte> GetTextureDataFromGpu(bool blacklist, ITexture texture = null)
         {
-            Span<byte> data;
+            IMemoryOwner<byte> block;
 
             if (texture != null)
             {
-                data = texture.GetData();
+                block = texture.GetData(ArenaMemoryPool<byte>.Shared);
             }
             else
             {
                 if (blacklist)
                 {
                     BlacklistScale();
-                    data = HostTexture.GetData();
+
+                    block = HostTexture.GetData(ArenaMemoryPool<byte>.Shared);
                 }
                 else if (ScaleFactor != 1f)
                 {
                     float scale = ScaleFactor;
+
                     SetScale(1f);
-                    data = HostTexture.GetData();
+
+                    block = HostTexture.GetData(ArenaMemoryPool<byte>.Shared);
+
                     SetScale(scale);
                 }
                 else
                 {
-                    data = HostTexture.GetData();
+                    block = HostTexture.GetData(ArenaMemoryPool<byte>.Shared);
                 }
             }
 
@@ -908,18 +930,21 @@ namespace Ryujinx.Graphics.Gpu.Image
             {
                 if (Info.IsLinear)
                 {
-                    data = LayoutConverter.ConvertLinearToLinearStrided(
+                    var tmpBlock = LayoutConverter.ConvertLinearToLinearStrided(
                         Info.Width,
                         Info.Height,
                         Info.FormatInfo.BlockWidth,
                         Info.FormatInfo.BlockHeight,
                         Info.Stride,
                         Info.FormatInfo.BytesPerPixel,
-                        data);
+                        block.Memory.Span);
+
+                    block.Dispose();
+                    block = tmpBlock;
                 }
                 else
                 {
-                    data = LayoutConverter.ConvertLinearToBlockLinear(
+                    var tmpBlock = LayoutConverter.ConvertLinearToBlockLinear(
                         Info.Width,
                         Info.Height,
                         _depth,
@@ -932,11 +957,14 @@ namespace Ryujinx.Graphics.Gpu.Image
                         Info.GobBlocksInZ,
                         Info.GobBlocksInTileX,
                         _sizeInfo,
-                        data);
+                        block.Memory.Span);
+
+                    block.Dispose();
+                    block = tmpBlock;
                 }
             }
 
-            return data;
+            return block;
         }
 
         /// <summary>

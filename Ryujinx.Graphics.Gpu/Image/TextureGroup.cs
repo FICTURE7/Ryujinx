@@ -217,9 +217,9 @@ namespace Ryujinx.Graphics.Gpu.Image
 
                             ReadOnlySpan<byte> data = _physicalMemory.GetSpan(Storage.Range.GetSlice((ulong)offset, (ulong)size));
 
-                            data = Storage.ConvertToHostCompatibleFormat(data, info.BaseLevel, true);
+                            using var block = Storage.ConvertToHostCompatibleFormat(data, info.BaseLevel, true);
 
-                            Storage.SetData(data, info.BaseLayer, info.BaseLevel);
+                            Storage.SetData(block.Memory.Span, info.BaseLayer, info.BaseLevel);
 
                             offsetIndex++;
                         }

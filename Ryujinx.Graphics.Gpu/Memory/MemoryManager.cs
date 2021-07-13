@@ -1,6 +1,8 @@
+using Ryujinx.Common.Memory;
 using Ryujinx.Memory;
 using Ryujinx.Memory.Range;
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -67,6 +69,24 @@ namespace Ryujinx.Graphics.Gpu.Memory
         public T Read<T>(ulong va) where T : unmanaged
         {
             return MemoryMarshal.Cast<byte, T>(GetSpan(va, Unsafe.SizeOf<T>()))[0];
+        }
+
+        public IMemoryOwner<byte> GetMemory(ulong va, int size, bool tracked = false)
+        {
+            var block = ArenaMemoryPool<byte>.Shared.Rent(size);
+            var data = block.Memory.Span;
+
+            if (IsContiguous(va, size))
+            {
+                Physical.GetSpan(Translate(va), size, tracked).CopyTo(data);
+            }
+            else
+            {
+
+                ReadImpl(va, data, tracked);
+            }
+
+            return block;
         }
 
         /// <summary>

@@ -353,10 +353,10 @@ namespace Ryujinx.Graphics.Gpu.Image
             MultiRange? range = null)
         {
             bool isSamplerTexture = (flags & TextureSearchFlags.ForSampler) != 0;
-
             bool isScalable = IsUpscaleCompatible(info);
 
-            TextureScaleMode scaleMode = TextureScaleMode.Blacklisted;
+            var scaleMode = TextureScaleMode.Blacklisted;
+            
             if (isScalable)
             {
                 scaleMode = (flags & TextureSearchFlags.WithUpscale) != 0 ? TextureScaleMode.Scaled : TextureScaleMode.Eligible;
@@ -606,6 +606,7 @@ namespace Ryujinx.Graphics.Gpu.Image
                                 _overlapInfo[fullyCompatible] = new OverlapInfo(compatibility, firstLayer, firstLevel);
                                 _textureOverlaps[fullyCompatible] = overlap;
                             }
+
                             fullyCompatible++;
                         }
                         else
@@ -632,7 +633,6 @@ namespace Ryujinx.Graphics.Gpu.Image
                         // If the texture was modified since its last use, then that data is probably meant to go into this texture.
                         // If the data has been modified by the CPU, then it also shouldn't be flushed.
                         bool modified = overlap.ConsumeModified();
-
                         bool flush = overlapInCache && !modified && !texture.Range.Contains(overlap.Range) && overlap.HasViewCompatibleChild(texture);
 
                         setData |= modified || flush;

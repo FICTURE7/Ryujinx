@@ -17,17 +17,17 @@ namespace Ryujinx.Graphics.Nvdec.Image
             int height = surface.Height;
             int stride = surface.Stride;
  
-            ReadOnlySpan<byte> luma = gmm.DeviceGetSpan(lumaOffset, GetBlockLinearSize(width, height, 1));
+            using var luma = gmm.DeviceGetMemory(lumaOffset, GetBlockLinearSize(width, height, 1));
 
-            ReadLuma(surface.YPlane.AsSpan(), luma, stride, width, height);
+            ReadLuma(surface.YPlane.AsSpan(), luma.Memory.Span, stride, width, height);
 
             int uvWidth = surface.UvWidth;
             int uvHeight = surface.UvHeight;
             int uvStride = surface.UvStride;
 
-            ReadOnlySpan<byte> chroma = gmm.DeviceGetSpan(chromaOffset, GetBlockLinearSize(uvWidth, uvHeight, 2));
+            using var chroma = gmm.DeviceGetMemory(chromaOffset, GetBlockLinearSize(uvWidth, uvHeight, 2));
 
-            ReadChroma(surface.UPlane.AsSpan(), surface.VPlane.AsSpan(), chroma, uvStride, uvWidth, uvHeight);
+            ReadChroma(surface.UPlane.AsSpan(), surface.VPlane.AsSpan(), chroma.Memory.Span, uvStride, uvWidth, uvHeight);
         }
 
         private static void ReadLuma(Span<byte> dst, ReadOnlySpan<byte> src, int dstStride, int width, int height)

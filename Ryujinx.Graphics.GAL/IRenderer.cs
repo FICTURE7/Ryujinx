@@ -1,6 +1,7 @@
 using Ryujinx.Common.Configuration;
 using Ryujinx.Graphics.Shader;
 using System;
+using System.Buffers;
 
 namespace Ryujinx.Graphics.GAL
 {
@@ -27,6 +28,7 @@ namespace Ryujinx.Graphics.GAL
 
         void DeleteBuffer(BufferHandle buffer);
 
+        IMemoryOwner<byte> GetBufferData(BufferHandle buffer, int offset, int size, MemoryPool<byte> pool);
         byte[] GetBufferData(BufferHandle buffer, int offset, int size);
 
         Capabilities GetCapabilities();

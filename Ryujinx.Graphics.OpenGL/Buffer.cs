@@ -1,6 +1,7 @@
 using OpenTK.Graphics.OpenGL;
 using Ryujinx.Graphics.GAL;
 using System;
+using System.Buffers;
 
 namespace Ryujinx.Graphics.OpenGL
 {
@@ -53,6 +54,21 @@ namespace Ryujinx.Graphics.OpenGL
                 (IntPtr)srcOffset,
                 (IntPtr)dstOffset,
                 (IntPtr)size);
+        }
+
+        public static unsafe IMemoryOwner<byte> GetData(BufferHandle buffer, int offset, int size, MemoryPool<byte> pool)
+        {
+            GL.BindBuffer(BufferTarget.CopyReadBuffer, buffer.ToInt32());
+
+            IMemoryOwner<byte> block = pool.Rent(size);
+            Span<byte> data = block.Memory.Span;
+
+            fixed (byte* ptr = data)
+            {
+                GL.GetBufferSubData(BufferTarget.CopyReadBuffer, (IntPtr)offset, size, (IntPtr)ptr);
+            }
+
+            return block;
         }
 
         public static byte[] GetData(BufferHandle buffer, int offset, int size)

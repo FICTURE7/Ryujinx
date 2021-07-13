@@ -1,5 +1,7 @@
-﻿using Ryujinx.Graphics.Gpu.Memory;
+﻿using Ryujinx.Common.Memory;
+using Ryujinx.Graphics.Gpu.Memory;
 using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -24,8 +26,11 @@ namespace Ryujinx.Graphics.Gpu.Engine.GPFifo
         /// <summary>
         /// Command buffer data.
         /// </summary>
-        private struct CommandBuffer
+        private struct CommandBuffer : IDisposable
         {
+            // Owner of the `Words` buffer.
+            private IMemoryOwner<int> _owner;
+
             /// <summary>
             /// Processor used to process the command buffer. Contains channel state.
             /// </summary>
@@ -39,7 +44,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.GPFifo
             /// <summary>
             /// Fetched data.
             /// </summary>
-            public int[] Words;
+            public Memory<int>? Words;
 
             /// <summary>
             /// The GPFIFO entry address (used in <see cref="CommandBufferType.NoPrefetch"/> mode).
@@ -58,14 +63,31 @@ namespace Ryujinx.Graphics.Gpu.Engine.GPFifo
             {
                 if (Words == null)
                 {
-                    Words = MemoryMarshal.Cast<byte, int>(memoryManager.GetSpan(EntryAddress, (int)EntryCount * 4, true)).ToArray();
+                    ReadOnlySpan<byte> data = memoryManager.GetSpan(EntryAddress, (int)EntryCount * 4, true);
+                    IMemoryOwner<int> words = ArenaMemoryPool<int>.Shared.Rent((int)EntryCount);
+
+                    MemoryMarshal.Cast<byte, int>(data).CopyTo(words.Memory.Span);
+
+                    _owner = words;
+                    Words = words.Memory;
+                }
+            }
+
+            /// <summary>
+            /// Release the <see cref="CommandBuffer"/> object.
+            /// </summary>
+            public void Dispose()
+            {
+                if (_owner != null)
+                {
+                    _owner.Dispose();
+                    _owner = null;
                 }
             }
         }
 
         private readonly ConcurrentQueue<CommandBuffer> _commandBufferQueue;
 
-        private CommandBuffer _currentCommandBuffer;
         private GPFifoProcessor _prevChannelProcessor;
 
         private readonly bool _ibEnable;
@@ -188,8 +210,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.GPFifo
             // Process command buffers.
             while (_ibEnable && !_interrupt && _commandBufferQueue.TryDequeue(out CommandBuffer entry))
             {
-                _currentCommandBuffer = entry;
-                _currentCommandBuffer.Fetch(entry.Processor.MemoryManager);
+                entry.Fetch(entry.Processor.MemoryManager);
 
                 // If we are changing the current channel,
                 // we need to force all the host state to be updated.
@@ -199,8 +220,12 @@ namespace Ryujinx.Graphics.Gpu.Engine.GPFifo
                     entry.Processor.ForceAllDirty();
                 }
 
-                entry.Processor.Process(_currentCommandBuffer.Words);
+                entry.Processor.Process((entry.Words ?? Memory<int>.Empty).Span);
+                entry.Dispose();
             }
+
+            ArenaMemoryPool<byte>.Shared.Reset();
+            ArenaMemoryPool<int>.Shared.Reset();
 
             _interrupt = false;
         }

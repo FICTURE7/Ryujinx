@@ -1,3 +1,4 @@
+using Ryujinx.Common.Memory;
 using Ryujinx.Cpu.Tracking;
 using Ryujinx.Graphics.GAL;
 using Ryujinx.Memory.Range;
@@ -298,6 +299,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
                 }
 
                 EnsureRangeList();
+
                 _modifiedRanges.InheritRanges(from._modifiedRanges, (ulong address, ulong size) =>
                 {
                     if (_useGranular)
@@ -412,10 +414,10 @@ namespace Ryujinx.Graphics.Gpu.Memory
         {
             int offset = (int)(address - Address);
 
-            byte[] data = _context.Renderer.GetBufferData(Handle, offset, (int)size);
+            using var block = _context.Renderer.GetBufferData(Handle, offset, (int)size, ArenaMemoryPool<byte>.Shared);
 
             // TODO: When write tracking shaders, they will need to be aware of changes in overlapping buffers.
-            _physicalMemory.WriteUntracked(address, data);
+            _physicalMemory.WriteUntracked(address, block.Memory.Span);
         }
 
         /// <summary>

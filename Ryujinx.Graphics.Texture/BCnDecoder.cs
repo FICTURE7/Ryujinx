@@ -1,5 +1,7 @@
 using Ryujinx.Common;
+using Ryujinx.Common.Memory;
 using System;
+using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -10,7 +12,7 @@ namespace Ryujinx.Graphics.Texture
         private const int BlockWidth = 4;
         private const int BlockHeight = 4;
 
-        public static byte[] DecodeBC4(ReadOnlySpan<byte> data, int width, int height, int depth, int levels, int layers, bool signed)
+        public static IMemoryOwner<byte> DecodeBC4(ReadOnlySpan<byte> data, int width, int height, int depth, int levels, int layers, bool signed)
         {
             int size = 0;
 
@@ -19,7 +21,8 @@ namespace Ryujinx.Graphics.Texture
                 size += Math.Max(1, width >> l) * Math.Max(1, height >> l) * Math.Max(1, depth >> l) * layers;
             }
 
-            byte[] output = new byte[size];
+            IMemoryOwner<byte> result = ArenaMemoryPool<byte>.Shared.Rent(size);
+            Span<byte> output = result.Memory.Span;
 
             ReadOnlySpan<ulong> data64 = MemoryMarshal.Cast<byte, ulong>(data);
 
@@ -93,10 +96,10 @@ namespace Ryujinx.Graphics.Texture
                 depth  = Math.Max(1, depth  >> 1);
             }
 
-            return output;
+            return result;
         }
 
-        public static byte[] DecodeBC5(ReadOnlySpan<byte> data, int width, int height, int depth, int levels, int layers, bool signed)
+        public static IMemoryOwner<byte> DecodeBC5(ReadOnlySpan<byte> data, int width, int height, int depth, int levels, int layers, bool signed)
         {
             int size = 0;
 
@@ -105,7 +108,8 @@ namespace Ryujinx.Graphics.Texture
                 size += Math.Max(1, width >> l) * Math.Max(1, height >> l) * Math.Max(1, depth >> l) * layers * 2;
             }
 
-            byte[] output = new byte[size];
+            IMemoryOwner<byte> result = ArenaMemoryPool<byte>.Shared.Rent(size);
+            Span<byte> output = result.Memory.Span;
 
             ReadOnlySpan<ulong> data64 = MemoryMarshal.Cast<byte, ulong>(data);
 
@@ -188,7 +192,7 @@ namespace Ryujinx.Graphics.Texture
                 depth  = Math.Max(1, depth  >> 1);
             }
 
-            return output;
+            return result;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

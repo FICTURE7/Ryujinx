@@ -1,6 +1,8 @@
 ﻿using OpenTK.Graphics.OpenGL;
+using Ryujinx.Common.Memory;
 using Ryujinx.Graphics.GAL;
 using System;
+using System.Buffers;
 
 namespace Ryujinx.Graphics.OpenGL.Image
 {
@@ -36,6 +38,11 @@ namespace Ryujinx.Graphics.OpenGL.Image
         public ITexture CreateView(TextureCreateInfo info, int firstLayer, int firstLevel)
         {
             throw new NotSupportedException();
+        }
+
+        public IMemoryOwner<byte> GetData(MemoryPool<byte> pool)
+        {
+            return Buffer.GetData(_buffer, _bufferOffset, _bufferSize, pool);
         }
 
         public byte[] GetData()

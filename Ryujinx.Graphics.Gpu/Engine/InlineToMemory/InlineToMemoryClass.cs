@@ -63,6 +63,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.InlineToMemory
         /// <param name="channel">GPU channel</param>
         public InlineToMemoryClass(GpuContext context, GpuChannel channel) : this(context, channel, true)
         {
+
         }
 
         /// <summary>

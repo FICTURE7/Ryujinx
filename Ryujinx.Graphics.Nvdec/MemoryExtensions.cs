@@ -1,5 +1,6 @@
 ﻿using Ryujinx.Graphics.Gpu.Memory;
 using System;
+using System.Buffers;
 
 namespace Ryujinx.Graphics.Nvdec
 {
@@ -8,6 +9,11 @@ namespace Ryujinx.Graphics.Nvdec
         public static T DeviceRead<T>(this MemoryManager gmm, uint offset) where T : unmanaged
         {
             return gmm.Read<T>((ulong)offset << 8);
+        }
+
+        public static IMemoryOwner<byte> DeviceGetMemory(this MemoryManager gmm, uint offset, int size)
+        {
+            return gmm.GetMemory((ulong)offset << 8, size);
         }
 
         public static ReadOnlySpan<byte> DeviceGetSpan(this MemoryManager gmm, uint offset, int size)

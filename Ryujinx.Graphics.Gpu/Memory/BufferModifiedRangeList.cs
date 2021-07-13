@@ -302,6 +302,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
             }
 
             ulong currentSync = _context.SyncNumber;
+
             foreach (BufferModifiedRange range in inheritRanges)
             {
                 if (range.SyncNumber != currentSync)

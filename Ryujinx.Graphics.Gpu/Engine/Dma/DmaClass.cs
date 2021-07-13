@@ -1,8 +1,10 @@
 ﻿using Ryujinx.Common;
+using Ryujinx.Common.Memory;
 using Ryujinx.Graphics.Device;
 using Ryujinx.Graphics.Gpu.Engine.Threed;
 using Ryujinx.Graphics.Texture;
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics;
@@ -158,8 +160,10 @@ namespace Ryujinx.Graphics.Gpu.Engine.Dma
                 (int srcBaseOffset, int srcSize) = srcCalculator.GetRectangleRange(src.RegionX, src.RegionY, xCount, yCount);
                 (int dstBaseOffset, int dstSize) = dstCalculator.GetRectangleRange(dst.RegionX, dst.RegionY, xCount, yCount);
 
+                using var dstRegion = memoryManager.Physical.GetWritableRegion(dstBaseAddress + (ulong)dstBaseOffset, dstSize);
+
                 ReadOnlySpan<byte> srcSpan = memoryManager.Physical.GetSpan(srcBaseAddress + (ulong)srcBaseOffset, srcSize, true);
-                Span<byte> dstSpan = memoryManager.Physical.GetSpan(dstBaseAddress + (ulong)dstBaseOffset, dstSize).ToArray();
+                Span<byte> dstSpan = dstRegion.Memory.Span; 
 
                 bool completeSource = IsTextureCopyComplete(src, srcLinear, srcBpp, srcStride, xCount, yCount);
                 bool completeDest = IsTextureCopyComplete(dst, dstLinear, dstBpp, dstStride, xCount, yCount);
@@ -178,10 +182,11 @@ namespace Ryujinx.Graphics.Gpu.Engine.Dma
 
                     if (target != null)
                     {
-                        ReadOnlySpan<byte> data;
+                        IMemoryOwner<byte> block;
+
                         if (srcLinear)
                         {
-                            data = LayoutConverter.ConvertLinearStridedToLinear(
+                            block = LayoutConverter.ConvertLinearStridedToLinear(
                                 target.Info.Width,
                                 target.Info.Height,
                                 1,
@@ -192,7 +197,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Dma
                         }
                         else
                         {
-                            data = LayoutConverter.ConvertBlockLinearToLinear(
+                            block = LayoutConverter.ConvertBlockLinearToLinear(
                                 src.Width,
                                 src.Height,
                                 1,
@@ -208,16 +213,16 @@ namespace Ryujinx.Graphics.Gpu.Engine.Dma
                                 srcSpan);
                         }
 
-                        target.SetData(data);
+                        target.SetData(block.Memory.Span);
                         target.SignalModified();
+
+                        block.Dispose();
 
                         return;
                     }
                     else if (srcCalculator.LayoutMatches(dstCalculator))
                     {
                         srcSpan.CopyTo(dstSpan); // No layout conversion has to be performed, just copy the data entirely.
-
-                        memoryManager.Physical.Write(dstBaseAddress + (ulong)dstBaseOffset, dstSpan);
 
                         return;
                     }
@@ -257,8 +262,6 @@ namespace Ryujinx.Graphics.Gpu.Engine.Dma
                     16 => Convert<Vector128<byte>>(dstSpan, srcSpan),
                     _ => throw new NotSupportedException($"Unable to copy ${srcBpp} bpp pixel format.")
                 };
-
-                memoryManager.Physical.Write(dstBaseAddress + (ulong)dstBaseOffset, dstSpan);
             }
             else
             {
